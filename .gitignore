@@ -361,3 +361,6 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+/better_vpn.vcxproj
+/better_vpn.vcxproj.filters
+/better_vpn.inf
