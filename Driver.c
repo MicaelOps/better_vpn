@@ -1,8 +1,46 @@
 #include <ntddk.h>
 #include "wfp_handler.h"
 
-PDEVICE_OBJECT DeviceObject;
+// User Mode requests an address change for the packet.
+#define VPS_SERVER_ADDRESS_CHANGE 0x20
 
+// Toggle Packet redirection
+#define VPS_TOGGLE_REDIRECT 0x21
+
+// Toggle Packet Encryption
+#define VPS_TOGGLE_ENCRYPTION 0x22
+
+PDEVICE_OBJECT DeviceObject;
+UNICODE_STRING DriverSymbolicLink, DriverName;
+
+
+// IRP_MJ_DEVICE_CONTROL Handler Function
+NTSTATUS HandleUserCommunication(PDEVICE_OBJECT DeviceObject, PIRP irp) {
+
+	NT_ASSERT(DeviceObject);
+	NT_ASSERT(irp);
+
+	PIO_STACK_LOCATION irpStack = IoGetCurrentIrpStackLocation(irp);
+
+	
+	switch (irpStack->Parameters.DeviceIoControl.IoControlCode) {
+		case VPS_SERVER_ADDRESS_CHANGE:
+			irp->IoStatus.Status = STATUS_SUCCESS;
+			IoCompleteRequest(irp, IO_NO_INCREMENT);
+			break;
+		case VPS_TOGGLE_REDIRECT:
+			irp->IoStatus.Status = STATUS_SUCCESS;
+			IoCompleteRequest(irp, IO_NO_INCREMENT);
+			break;
+		case VPS_TOGGLE_ENCRYPTION:
+			irp->IoStatus.Status = STATUS_SUCCESS;
+			IoCompleteRequest(irp, IO_NO_INCREMENT);
+			break;
+	default:
+		break;
+	}
+
+}
 
 void DriverUnload(PDRIVER_OBJECT DriverObject) {
 
@@ -30,6 +68,15 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath) 
 		return status;
 	}
 
+	RtlInitUnicodeString(&DriverSymbolicLink, L"\\??\\BetterVPN");
+	RtlInitUnicodeString(&DriverName, L"\\Device\\BetterVPN");
+
+	status = IoCreateSymbolicLink(&DriverSymbolicLink, &DriverName);
+
+	if (!NT_SUCCESS(status)) {
+		DbgPrint("Unable to load create symbolic link \n");
+		goto error;
+	}
 	status = InitWFP(DeviceObject);
 
 	if (!NT_SUCCESS(status)) {
@@ -37,12 +84,18 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath) 
 		goto error;
 	}
 
+	for (int i = 0; i < 28; ++i) {
+		DriverObject->MajorFunction[i] = NULL;
+	}
+
+	DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = HandleUserCommunication;
+
 	DbgPrint("Driver has been successfully loaded.\n");
 
 error:
-	DbgPrint("Error code detected %ld", status);
-
+	DbgPrint("Error code: %ld", status);
 	if (!NT_SUCCESS(status)) {
+		IoDeleteSymbolicLink(&DriverSymbolicLink);
 		IoDeleteDevice(DeviceObject);
 	}
 

@@ -11,31 +11,43 @@ const FWPS_CALLOUT Callout = {
 };
 
 // The callback function where the filtering logic is implemented.
+// Inline Modification Callout
 VOID NTAPI ClassifyFn(
-	IN const FWPS_INCOMING_VALUES0* inFixedValues,
-	IN const FWPS_INCOMING_METADATA_VALUES0* inMetaValues,
+	IN const FWPS_INCOMING_VALUES* inFixedValues,
+	IN const FWPS_INCOMING_METADATA_VALUES* inMetaValues,
 	IN OUT VOID* layerData,
-	IN const FWPS_FILTER0* filter,
+	IN const FWPS_FILTER* filter,
 	IN UINT64  flowContext,
-	IN OUT FWPS_CLASSIFY_OUT0* classifyOut
+	IN OUT FWPS_CLASSIFY_OUT* classifyOut
 ) {
-
+	
 }
 
 // Called whenever a filter that references the callout is added or removed. 
 NTSTATUS NTAPI NotifyFn(
 	IN FWPS_CALLOUT_NOTIFY_TYPE notifyType,
 	IN const GUID* filterKey,
-	IN const FWPS_FILTER0* filter
+	IN const FWPS_FILTER* filter
 ) {
 
+	NT_ASSERT(filter);
+
+	switch (notifyType) {
+		case FWPS_CALLOUT_NOTIFY_ADD_FILTER:
+		case FWPS_CALLOUT_NOTIFY_DELETE_FILTER:
+	default:
+		break;
+	}
+	return STATUS_SUCCESS;
 }
 
 VOID NTAPI FlowDeleteFn(
-    IN UINT16  layerId,
-    IN UINT32  calloutId,
-    IN UINT64  flowContext
-);
+	IN UINT16  layerId,
+	IN UINT32  calloutId,
+	IN UINT64  flowContext
+) {
+
+}
 
 
 
@@ -55,6 +67,7 @@ NTSTATUS closeWFP() {
 NTSTATUS InitWFP(PDEVICE_OBJECT DeviceObject) {
 	NTSTATUS status = STATUS_SUCCESS;
 
+	// Registering the callout.
 	status = FwpsCalloutRegister(DeviceObject, &Callout, &CalloutId);
 
 
@@ -64,6 +77,7 @@ NTSTATUS InitWFP(PDEVICE_OBJECT DeviceObject) {
 	}
 
 	DbgPrint("Sucessfully opened the engine; \n");
+
 error:
 	if (!NT_SUCCESS(status)) {
 
