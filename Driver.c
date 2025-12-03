@@ -23,8 +23,11 @@ NTSTATUS HandleUserCommunication(PDEVICE_OBJECT DeviceObject, PIRP irp) {
 	PIO_STACK_LOCATION irpStack = IoGetCurrentIrpStackLocation(irp);
 
 	
+	DbgPrint("IRP IO Control Code: %ld", irpStack->Parameters.DeviceIoControl.IoControlCode);
+
 	switch (irpStack->Parameters.DeviceIoControl.IoControlCode) {
 		case VPS_SERVER_ADDRESS_CHANGE:
+			
 			irp->IoStatus.Status = STATUS_SUCCESS;
 			IoCompleteRequest(irp, IO_NO_INCREMENT);
 			break;
@@ -59,17 +62,18 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath) 
 
 	NTSTATUS status = STATUS_SUCCESS;
 
-	status = IoCreateDevice(DriverObject, 0, NULL, FILE_DEVICE_UNKNOWN, 0, FALSE, &DeviceObject);
+	RtlInitUnicodeString(&DriverSymbolicLink, L"\\??\\BetterVPN");
+	RtlInitUnicodeString(&DriverName, L"\\Device\\BetterVPN");
 
 	DriverObject->DriverUnload = DriverUnload;
+
+	status = IoCreateDevice(DriverObject, 0, &DriverName, FILE_DEVICE_UNKNOWN, 0, FALSE, &DeviceObject);
+
 
 	if (!NT_SUCCESS(status)) {
 		DbgPrint("Unable to create DeviceObject \n");
 		return status;
 	}
-
-	RtlInitUnicodeString(&DriverSymbolicLink, L"\\??\\BetterVPN");
-	RtlInitUnicodeString(&DriverName, L"\\Device\\BetterVPN");
 
 	status = IoCreateSymbolicLink(&DriverSymbolicLink, &DriverName);
 
