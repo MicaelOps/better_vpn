@@ -11,7 +11,7 @@
 #define VPS_TOGGLE_ENCRYPTION 0x22
 
 PDEVICE_OBJECT DeviceObject;
-UNICODE_STRING DriverSymbolicLink, DriverName;
+UNICODE_STRING DosDeviceName, DeviceName;
 
 
 // IRP_MJ_DEVICE_CONTROL Handler Function
@@ -53,7 +53,7 @@ void DriverUnload(PDRIVER_OBJECT DriverObject) {
 
 	IoDeleteDevice(DeviceObject);
 
-	DbgPrint("[*] callout driver unloaded\n");
+	DbgPrint("BetterVPN Driver Unloaded \n");
 }
 
 
@@ -62,25 +62,28 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath) 
 
 	NTSTATUS status = STATUS_SUCCESS;
 
-	RtlInitUnicodeString(&DriverSymbolicLink, L"\\??\\BetterVPN");
-	RtlInitUnicodeString(&DriverName, L"\\Device\\BetterVPN");
+	RtlInitUnicodeString(&DosDeviceName, L"\\DosDevices\\BetterVPN");
+	RtlInitUnicodeString(&DeviceName, L"\\Device\\BetterVPN");
 
 	DriverObject->DriverUnload = DriverUnload;
 
-	status = IoCreateDevice(DriverObject, 0, &DriverName, FILE_DEVICE_UNKNOWN, 0, FALSE, &DeviceObject);
+
+	status = IoCreateSymbolicLink(&DosDeviceName, &DeviceName);
+
+	if (!NT_SUCCESS(status)) {
+		DbgPrint("Unable to load create symbolic link \n");
+		return status;
+	}
+
+	status = IoCreateDevice(DriverObject, 0, &DeviceName, FILE_DEVICE_UNKNOWN, 0, FALSE, &DeviceObject);
 
 
 	if (!NT_SUCCESS(status)) {
 		DbgPrint("Unable to create DeviceObject \n");
+		IoDeleteSymbolicLink(&DosDeviceName);
 		return status;
 	}
 
-	status = IoCreateSymbolicLink(&DriverSymbolicLink, &DriverName);
-
-	if (!NT_SUCCESS(status)) {
-		DbgPrint("Unable to load create symbolic link \n");
-		goto error;
-	}
 	status = InitWFP(DeviceObject);
 
 	if (!NT_SUCCESS(status)) {
@@ -97,9 +100,9 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath) 
 	DbgPrint("Driver has been successfully loaded.\n");
 
 error:
-	DbgPrint("Error code: %ld", status);
 	if (!NT_SUCCESS(status)) {
-		IoDeleteSymbolicLink(&DriverSymbolicLink);
+		DbgPrint("Error code: %ld", status);
+		IoDeleteSymbolicLink(&DosDeviceName);
 		IoDeleteDevice(DeviceObject);
 	}
 
