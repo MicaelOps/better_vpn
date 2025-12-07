@@ -1,34 +1,47 @@
 #include "wfp_handler.h"
 
-UINT32 CalloutId = NULL;
-
-const FWPS_CALLOUT Callout = {
-	{ 0x7c334a77, 0xe480, 0x4a87, { 0x87, 0x7a, 0x0e, 0x7f, 0xc8, 0x14, 0x61, 0xe3 } },
-	0,
-	ClassifyFn,
-	NotifyFn,
-	FlowDeleteFn
-};
+UINT32 CalloutId = 0;
 
 // The callback function where the filtering logic is implemented.
 // Inline Modification Callout
-VOID NTAPI ClassifyFn(
+static VOID NTAPI ClassifyFn(
 	IN const FWPS_INCOMING_VALUES* inFixedValues,
 	IN const FWPS_INCOMING_METADATA_VALUES* inMetaValues,
 	IN OUT VOID* layerData,
+	IN const VOID* classifyContext,
 	IN const FWPS_FILTER* filter,
 	IN UINT64  flowContext,
 	IN OUT FWPS_CLASSIFY_OUT* classifyOut
 ) {
+	UNREFERENCED_PARAMETER(inFixedValues);
+	UNREFERENCED_PARAMETER(inMetaValues);
+	UNREFERENCED_PARAMETER(layerData);
+	UNREFERENCED_PARAMETER(classifyContext);
+	UNREFERENCED_PARAMETER(filter);
+	UNREFERENCED_PARAMETER(flowContext);
+	UNREFERENCED_PARAMETER(classifyOut);
 	
+	if (filter == NULL) 
+		return;
+	
+	if (inFixedValues->layerId == FWPS_LAYER_ALE_CONNECT_REDIRECT_V4 || inFixedValues->layerId == FWPS_LAYER_ALE_CONNECT_REDIRECT_V6) {
+
+		if (filter->action.type == FWP_ACTION_PERMIT) {
+
+		}
+
+	}
 }
 
 // Called whenever a filter that references the callout is added or removed. 
-NTSTATUS NTAPI NotifyFn(
+static NTSTATUS NTAPI NotifyFn(
 	IN FWPS_CALLOUT_NOTIFY_TYPE notifyType,
 	IN const GUID* filterKey,
 	IN const FWPS_FILTER* filter
 ) {
+	UNREFERENCED_PARAMETER(notifyType);
+	UNREFERENCED_PARAMETER(filterKey);
+	UNREFERENCED_PARAMETER(filter);
 
 	NT_ASSERT(filter);
 
@@ -41,38 +54,53 @@ NTSTATUS NTAPI NotifyFn(
 	return STATUS_SUCCESS;
 }
 
-VOID NTAPI FlowDeleteFn(
+static VOID NTAPI FlowDeleteFn(
 	IN UINT16  layerId,
 	IN UINT32  calloutId,
 	IN UINT64  flowContext
 ) {
-
+	UNREFERENCED_PARAMETER(layerId);
+	UNREFERENCED_PARAMETER(calloutId);
+	UNREFERENCED_PARAMETER(flowContext);
 }
 
+const FWPS_CALLOUT Callout = {
+	{ 0x7c334a77, 0xe480, 0x4a87, { 0x87, 0x7a, 0x0e, 0x7f, 0xc8, 0x14, 0x61, 0xe3 } },
+	0,
+	ClassifyFn,
+	NotifyFn,
+	FlowDeleteFn
+};
 
 
 NTSTATUS closeWFP() {
 	NTSTATUS status = STATUS_SUCCESS;
 
-	if (CalloutId != NULL) {
+	if (CalloutId == 0)
+		return status;
 
-		status = FwpsCalloutUnregisterById(CalloutId);
+	status = FwpsCalloutUnregisterById(CalloutId);
 
-
+	if (!NT_SUCCESS(status)) {
+		DbgPrint("Unable to unregister VPN Callout. \n");
+		return status;
 	}
 
-	return status;
+
+	return STATUS_SUCCESS;
 }
 
 NTSTATUS InitWFP(PDEVICE_OBJECT DeviceObject) {
 	NTSTATUS status = STATUS_SUCCESS;
+
+	UNREFERENCED_PARAMETER(DeviceObject);
 
 	// Registering the callout.
 	status = FwpsCalloutRegister(DeviceObject, &Callout, &CalloutId);
 
 
 	if (!NT_SUCCESS(status)) {
-		DbgPrint("Unable to load FwpmEngineOpen \n");
+		DbgPrint("Unable to load FwpmEngineOpen, Error: %ld \n", status);
 		goto error;
 	}
 
@@ -80,8 +108,8 @@ NTSTATUS InitWFP(PDEVICE_OBJECT DeviceObject) {
 
 error:
 	if (!NT_SUCCESS(status)) {
-
+		return STATUS_LINK_FAILED;
 	}
 
-	return status;
+	return STATUS_SUCCESS;
 }
