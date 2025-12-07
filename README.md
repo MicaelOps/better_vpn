@@ -1,4 +1,4 @@
-WFP Callout Driver for the VPN
+VPN 
 
 Logs (rants, vents and afterthoughts):
 
@@ -6,6 +6,10 @@ Logs (rants, vents and afterthoughts):
 - God, I fixed the issue of the better_vpn_user project not showing up in git. Wasnt hard at all! More git pushes will start showing up.
 - Have been doing heavy reading on the ClassifyFn of the Callout Driver because it appears to be where magic happens.
 - Only to find out that I have to go back to usermode to implement filter layers so it can communicate with my callout driver. Understandable dynamic but aaaah.
+- At some point if i get bored of writing the vpn, I will just jump to the server part of the vpn for more fun. 
+- Also, hella scary how these applications can literally store ALL your network communication at will and we will never know about it until its leaked or someone decided to act as a crusader.
+- Most likely will never use a VPN service after this. All hail TOR.
+
 
 05/12/2025
 - Finally finished the user side load of the driver.
