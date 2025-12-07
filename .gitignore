@@ -368,3 +368,5 @@ FodyWeavers.xsd
 /better_vpn_user/better_vpn_user.vcxproj
 /better_vpn_user/better_vpn_user.vcxproj.filters
 /better_vpn.sln
+/better_vpn_driver/better_vpn.vcxproj.filters
+/better_vpn_driver/better_vpn.vcxproj
