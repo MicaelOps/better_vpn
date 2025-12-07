@@ -2,7 +2,10 @@ WFP Callout Driver for the VPN
 
 Logs (rants, vents and afterthoughts):
 
-test1
+07/12/2025
+- God, I fixed the issue of the better_vpn_user project not showing up in git. Wasnt hard at all! More git pushes will start showing up.
+- Have been doing heavy reading on the ClassifyFn of the Callout Driver because it appears to be where magic happens.
+- Only to find out that I have to go back to usermode to implement filter layers so it can communicate with my callout driver. Understandable dynamic but aaaah.
 
 05/12/2025
 - Finally finished the user side load of the driver.
