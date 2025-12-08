@@ -3,7 +3,7 @@
 
 #include <iostream>
 #include <Windows.h>
-
+#include "wfp_user_handler.h"
 
 #define IOCTL_VPS_SERVER_ADDRESS_CHANGE \
     CTL_CODE(FILE_DEVICE_UNKNOWN, 0x800, METHOD_BUFFERED, FILE_ANY_ACCESS)
@@ -21,7 +21,6 @@ const struct IO_BUFFER {
 };
 
 typedef IO_BUFFER* PIO_BUFFER;
-
 
 bool SendIOCTLMessage(ULONG code, HANDLE devicehandle, PIO_BUFFER in, PIO_BUFFER out);
 bool SendIOCTLMessage(ULONG code, HANDLE devicehandle);
@@ -163,10 +162,22 @@ int main(int argc, char* argv[])
 
         bool success = ControlService(vpn_service_handle, SERVICE_CONTROL_STOP, &serviceStatus);
 
-        if (success && serviceStatus.dwCurrentState == SERVICE_STOP_PENDING) {
+        if (success && serviceStatus.dwCurrentState == SERVICE_STOP_PENDING) 
             Sleep(3000);  // Wait for it to fully stop
-        }
+        
 
+        CloseServiceHandle(vpn_service_handle);
+        CloseServiceHandle(schandle);
+        return -1;
+    }
+
+    HANDLE engineHandle;
+
+    if (!SetupWFP(engineHandle)) {
+        std::cout << "Unable to finish setting up the VPN. \n";
+        CloseHandle(deviceHandle);
+        SERVICE_STATUS serviceStatus;
+        ControlService(vpn_service_handle, SERVICE_CONTROL_STOP, &serviceStatus);
         CloseServiceHandle(vpn_service_handle);
         CloseServiceHandle(schandle);
         return -1;
@@ -200,6 +211,9 @@ int main(int argc, char* argv[])
 
 
     } while (command != "stop");
+
+    std::cout << "Closing VPN Filters... \n";
+    CloseWFP(engineHandle);
 
     std::cout << "Closing VPN File Handle... \n";
     CloseHandle(deviceHandle);

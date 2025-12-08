@@ -1,6 +1,11 @@
-VPN 
+VPN Project
+
+-> better_vpn_user = Starts the driver and registers the filters
+-> better_vpn_driver = Implements the big boy's redirection and encryption
+-> better_vpn_server (to be created) = the middleman
 
 Logs (rants, vents and afterthoughts):
+
 
 07/12/2025
 - God, I fixed the issue of the better_vpn_user project not showing up in git. Wasnt hard at all! More git pushes will start showing up.
@@ -8,7 +13,7 @@ Logs (rants, vents and afterthoughts):
 - Only to find out that I have to go back to usermode to implement filter layers so it can communicate with my callout driver. Understandable dynamic but aaaah.
 - At some point if i get bored of writing the vpn, I will just jump to the server part of the vpn for more fun. 
 - Also, hella scary how these applications can literally store ALL your network communication at will and we will never know about it until its leaked or someone decided to act as a crusader.
-- Most likely will never use a VPN service after this. All hail TOR.
+- I will most likely never use a VPN ever again, unless it is to marvel at the wonders of yin-yang. All hail TOR.
 
 
 05/12/2025

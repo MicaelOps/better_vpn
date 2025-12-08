@@ -1,13 +1,19 @@
 #include "wfp_handler.h"
 
+
+
 // User Mode requests an address change for the packet.
-#define VPS_SERVER_ADDRESS_CHANGE 0x20
+#define IOCTL_VPS_SERVER_ADDRESS_CHANGE \
+    CTL_CODE(FILE_DEVICE_UNKNOWN, 0x800, METHOD_BUFFERED, FILE_ANY_ACCESS)
 
 // Toggle Packet redirection
-#define VPS_TOGGLE_REDIRECT 0x21
+#define IOCTL_VPS_TOGGLE_REDIRECT \
+    CTL_CODE(FILE_DEVICE_UNKNOWN, 0x801, METHOD_BUFFERED, FILE_ANY_ACCESS)
 
 // Toggle Packet Encryption
-#define VPS_TOGGLE_ENCRYPTION 0x22
+#define IOCTL_VPS_TOGGLE_ENCRYPTION \
+    CTL_CODE(FILE_DEVICE_UNKNOWN, 0x802, METHOD_BUFFERED, FILE_ANY_ACCESS)
+
 
 PDEVICE_OBJECT VPNDeviceObject;
 UNICODE_STRING DosDeviceName, DeviceName;
@@ -41,18 +47,18 @@ static NTSTATUS HandleVPNControlCommunication(PDEVICE_OBJECT DeviceObject, PIRP 
 	DbgPrint("IRP IO Control Code: %ld \n", irpStack->Parameters.DeviceIoControl.IoControlCode);
 
 	switch (irpStack->Parameters.DeviceIoControl.IoControlCode) {
-		case VPS_SERVER_ADDRESS_CHANGE:
+		case IOCTL_VPS_SERVER_ADDRESS_CHANGE:
 			
 			irp->IoStatus.Status = STATUS_SUCCESS;
 			irp->IoStatus.Information = 0;
 			IoCompleteRequest(irp, IO_NO_INCREMENT);
 			break;
-		case VPS_TOGGLE_REDIRECT:
+		case IOCTL_VPS_TOGGLE_REDIRECT:
 			irp->IoStatus.Status = STATUS_SUCCESS;
 			irp->IoStatus.Information = 0;
 			IoCompleteRequest(irp, IO_NO_INCREMENT);
 			break;
-		case VPS_TOGGLE_ENCRYPTION:
+		case IOCTL_VPS_TOGGLE_ENCRYPTION:
 			irp->IoStatus.Status = STATUS_SUCCESS;
 			irp->IoStatus.Information = 0;
 			IoCompleteRequest(irp, IO_NO_INCREMENT);
