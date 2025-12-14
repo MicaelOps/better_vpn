@@ -1,5 +1,8 @@
 #pragma once
 #include <fwpmu.h>
 
-void CloseWFP(HANDLE handle);
-bool SetupWFP(HANDLE& handle);
+#pragma comment (lib, "fwpuclnt.lib")
+#pragma comment (lib, "advapi32.lib")
+
+void CloseWFP();
+bool SetupWFP();

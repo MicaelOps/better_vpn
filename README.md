@@ -8,6 +8,12 @@ VPN Project
 
 Logs (rants, vents and afterthoughts):
 
+13/12/2025
+- Started grinding Leetcode (again) so I can start applying for jobs. Therefore, I will not have alot of time for cooler things like this.
+- Kinda hard juggling between my full-time useless admin job, programming my FUN projects, my other hobbies (piano,novels,gaming, etc), grinding leetcode
+- Holy mother god, this final redirection part from the client side is bugging me out. I have seen the example from the docs but even then...
+- I will give it a try again tomorrow...
+
 08/12/2025
 - Even though I have been abusing WFP, Im starting to wonder how difficult would it be to use NDIS. Some cool stuff could have been done there.
 - I would like to find out why other VPNs use a virtual network interface (TAP adapter). Ethernet? Control? Overhead issues? Efficiency? Visbility? WFP/NDIS seem to provide enough.

@@ -29,11 +29,15 @@ static VOID NTAPI ClassifyFn(
 	UNREFERENCED_PARAMETER(filter);
 	UNREFERENCED_PARAMETER(flowContext);
 	UNREFERENCED_PARAMETER(classifyOut);
+
 	
+
+
+
 	if (filter == NULL) 
 		return;
 	
-	if (inFixedValues->layerId == FWPS_LAYER_ALE_CONNECT_REDIRECT_V4) {
+	if (inFixedValues->layerId == FWPS_LAYER_ALE_CONNECT_REDIRECT_V4 || inFixedValues->layerId == FWPS_LAYER_ALE_CONNECT_REDIRECT_V6) {
 
 		if (filter->action.type == FWP_ACTION_PERMIT) {
 
@@ -43,6 +47,7 @@ static VOID NTAPI ClassifyFn(
 			if (redirectState == FWPS_CONNECTION_PREVIOUSLY_REDIRECTED_BY_SELF || redirectState == FWPS_CONNECTION_REDIRECTED_BY_SELF)
 				return;
 
+			
 			UINT64 ClassifyHandle;
 			NTSTATUS status = FwpsAcquireClassifyHandle(classifyContext, 0, &ClassifyHandle);
 
@@ -56,8 +61,10 @@ static VOID NTAPI ClassifyFn(
 			status = FwpsAcquireWritableLayerDataPointer(ClassifyHandle, filter->filterId, 0, &writableLayerData, &ClassifyOut);
 
 			FWPS_CONNECT_REQUEST* connectRequest = (FWPS_CONNECT_REQUEST*) writableLayerData;
-			FwpsApplyModifiedLayerData(ClassifyHandle, writableLayerData, 0);
 
+			connectRequest->localAddressAndPort
+			FwpsApplyModifiedLayerData(ClassifyHandle, writableLayerData, 0);
+			
 			FwpsReleaseClassifyHandle(ClassifyHandle);
 		}
 
@@ -104,7 +111,7 @@ const FWPS_CALLOUT Callout = {
 };
 
 
-NTSTATUS closeWFP() {
+NTSTATUS closeWFP(VOID) {
 	NTSTATUS status = STATUS_SUCCESS;
 	
 	if (CalloutId == 0)

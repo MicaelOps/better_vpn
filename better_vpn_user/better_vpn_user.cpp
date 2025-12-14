@@ -15,12 +15,10 @@
     CTL_CODE(FILE_DEVICE_UNKNOWN, 0x802, METHOD_BUFFERED, FILE_ANY_ACCESS)
 
 
-const struct IO_BUFFER {
+typedef struct IO_BUFFER {
     DWORD size;
     LPVOID buffer;
-};
-
-typedef IO_BUFFER* PIO_BUFFER;
+}* PIO_BUFFER;
 
 bool SendIOCTLMessage(ULONG code, HANDLE devicehandle, PIO_BUFFER in, PIO_BUFFER out);
 bool SendIOCTLMessage(ULONG code, HANDLE devicehandle);
@@ -28,8 +26,6 @@ bool SendIOCTLMessage(ULONG code, HANDLE devicehandle);
 int main(int argc, char* argv[])
 {
     std::cout << "Loading VPN service... \n";
-
- 
 
     // First checking if the kernel is loaded by using the Service Manager.
 
@@ -171,9 +167,8 @@ int main(int argc, char* argv[])
         return -1;
     }
 
-    HANDLE engineHandle;
 
-    if (!SetupWFP(engineHandle)) {
+    if (!SetupWFP()) {
         std::cout << "Unable to finish setting up the VPN. \n";
         CloseHandle(deviceHandle);
         SERVICE_STATUS serviceStatus;
@@ -184,7 +179,10 @@ int main(int argc, char* argv[])
     }
 
     std::string command;
-    ULONG code = 0; 
+    ULONG code = 0;
+    
+    std::cout << "You can start typing the commands (toggle_encryption, toggle_vpn, vpn_server_change, stop) \n";
+
     do {
         
         std::cin >> command;
@@ -213,7 +211,7 @@ int main(int argc, char* argv[])
     } while (command != "stop");
 
     std::cout << "Closing VPN Filters... \n";
-    CloseWFP(engineHandle);
+    CloseWFP();
 
     std::cout << "Closing VPN File Handle... \n";
     CloseHandle(deviceHandle);
