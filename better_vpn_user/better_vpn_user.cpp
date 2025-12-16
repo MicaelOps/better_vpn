@@ -2,8 +2,19 @@
 //
 
 #include <iostream>
-#include <Windows.h>
 #include "wfp_user_handler.h"
+
+#pragma comment(lib, "Ws2_32.lib")
+#define EXIT_ON_ERROR(x, status, topic) \
+    if((status=x) != 0) { \
+        std::cout << "Failed Operation detected at " << topic << ". Error Code: " << status << "\n"; \
+        goto cleanup; \
+    }
+#define EXIT_ON_ERROR_LAST(x, topic) \
+    if(x != 0) { \
+        std::cout << "Failed Operation detected at " << topic << ". Error Code: " << GetLastError() << "\n"; \
+        goto cleanup; \
+    }
 
 #define IOCTL_VPS_SERVER_ADDRESS_CHANGE \
     CTL_CODE(FILE_DEVICE_UNKNOWN, 0x800, METHOD_BUFFERED, FILE_ANY_ACCESS)
@@ -15,17 +26,31 @@
     CTL_CODE(FILE_DEVICE_UNKNOWN, 0x802, METHOD_BUFFERED, FILE_ANY_ACCESS)
 
 
+
 typedef struct IO_BUFFER {
     DWORD size;
     LPVOID buffer;
 }* PIO_BUFFER;
+
+// Send the initial proxy server's sockaddr to the callout driver for redirection.
+int SendInitialProxyServerInfo(LPSTR hostname, LPSTR port, HANDLE handle);
+
+// Acquire the SOCKTADDR structure from the Proxy Server IP's address to convert it to SOCKADDR_STORAGE for the callout driver
+int GetProxySockAddr(LPSTR hostname, LPSTR port, OUT addrinfo*& addr);
 
 bool SendIOCTLMessage(ULONG code, HANDLE devicehandle, PIO_BUFFER in, PIO_BUFFER out);
 bool SendIOCTLMessage(ULONG code, HANDLE devicehandle);
 
 int main(int argc, char* argv[])
 {
+
+    if (argc < 3) {
+        std::cout << "Unable to start VPN. Please input the <hostname> and <port> arguments";
+        return -1;
+    }
+
     std::cout << "Loading VPN service... \n";
+    int cleanuplevel = 0;
 
     // First checking if the kernel is loaded by using the Service Manager.
 
@@ -41,7 +66,7 @@ int main(int argc, char* argv[])
         SERVICE_START | SERVICE_STOP | SERVICE_QUERY_STATUS | SERVICE_PAUSE_CONTINUE);
 
 
-
+    
     if (vpn_service_handle == NULL) {
 
         DWORD errorCode = GetLastError();
@@ -167,20 +192,17 @@ int main(int argc, char* argv[])
         return -1;
     }
 
-
-    if (!SetupWFP()) {
-        std::cout << "Unable to finish setting up the VPN. \n";
-        CloseHandle(deviceHandle);
-        SERVICE_STATUS serviceStatus;
-        ControlService(vpn_service_handle, SERVICE_CONTROL_STOP, &serviceStatus);
-        CloseServiceHandle(vpn_service_handle);
-        CloseServiceHandle(schandle);
-        return -1;
-    }
-
     std::string command;
     ULONG code = 0;
+    WSADATA wsaData;
+    int result;
+
+    EXIT_ON_ERROR(SetupWFP(), result, "SetupWFP");
     
+    EXIT_ON_ERROR(WSAStartup(MAKEWORD(2, 2), &wsaData), result, "WSAStartup"); // Just used for obtaining the proxy server's sockaddr
+
+    EXIT_ON_ERROR_LAST(SendInitialProxyServerInfo(argv[1], argv[2], deviceHandle), "SendInitialProxyServerInfo");
+
     std::cout << "You can start typing the commands (toggle_encryption, toggle_vpn, vpn_server_change, stop) \n";
 
     do {
@@ -189,10 +211,13 @@ int main(int argc, char* argv[])
         
         if (command == "toggle_encryption") 
             code = IOCTL_VPS_TOGGLE_ENCRYPTION;
+
         else if (command == "toggle_vpn") 
             code = IOCTL_VPS_TOGGLE_REDIRECT; 
+
         else if (command == "vpn_server_change") 
             code = IOCTL_VPS_SERVER_ADDRESS_CHANGE;
+
         
         if (code == 0) 
             continue;
@@ -210,12 +235,17 @@ int main(int argc, char* argv[])
 
     } while (command != "stop");
 
+cleanup:
+
+    WSACleanup();
+
     std::cout << "Closing VPN Filters... \n";
     CloseWFP();
 
     std::cout << "Closing VPN File Handle... \n";
     CloseHandle(deviceHandle);
 
+    // Closing the VPN Service before closing the handles
     SERVICE_STATUS serviceStatus;
     ControlService(vpn_service_handle, SERVICE_CONTROL_STOP, &serviceStatus);
 
@@ -234,4 +264,43 @@ bool SendIOCTLMessage(ULONG code, HANDLE devicehandle, PIO_BUFFER in, PIO_BUFFER
 bool SendIOCTLMessage(ULONG code, HANDLE devicehandle) {
     IO_BUFFER in{0, nullptr}, out{ 0, nullptr };
     return SendIOCTLMessage(code, devicehandle, &in, &out);
+}
+
+int GetProxySockAddr(LPSTR hostname, LPSTR port, OUT addrinfo*& addr) {
+
+    addrinfo* result = NULL;
+    addrinfo hints;
+
+    ZeroMemory(&hints, sizeof(hints));
+    hints.ai_family = AF_INET;
+    hints.ai_socktype = SOCK_STREAM;
+    hints.ai_protocol = IPPROTO_TCP;
+
+    int addrresult = getaddrinfo(hostname, port, &hints, &result);
+
+    if (addrresult != 0) {
+        std::cout << "Failed to getaddrinfo() Error Code:" << addrresult << "\n";
+        return -1;
+    }
+    addr = result;
+    return ERROR_SUCCESS;
+}
+// Send the initial proxy server's sockaddr to the callout driver for redirection.
+int SendInitialProxyServerInfo(LPSTR hostname, LPSTR port, HANDLE handle) {
+
+    addrinfo* proxyaddrinfo;
+    
+    if (GetProxySockAddr(hostname, port, proxyaddrinfo) != ERROR_SUCCESS) {
+        std::cout << "Unable to get socket address.";
+        return -1;
+    }
+
+    IO_BUFFER inData ={ sizeof(proxyaddrinfo), &proxyaddrinfo };
+    IO_BUFFER outData ={ 0, nullptr };
+
+    if (!SendIOCTLMessage(IOCTL_VPS_SERVER_ADDRESS_CHANGE, handle, &inData, &outData)) {
+        std::cout << "Unable to send message to the driver Error: " << GetLastError();
+        return -1;
+    }
+    return ERROR_SUCCESS;
 }

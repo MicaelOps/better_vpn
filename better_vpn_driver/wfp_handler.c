@@ -62,7 +62,7 @@ static VOID NTAPI ClassifyFn(
 
 			FWPS_CONNECT_REQUEST* connectRequest = (FWPS_CONNECT_REQUEST*) writableLayerData;
 
-			connectRequest->localAddressAndPort
+			
 			FwpsApplyModifiedLayerData(ClassifyHandle, writableLayerData, 0);
 			
 			FwpsReleaseClassifyHandle(ClassifyHandle);
@@ -116,6 +116,8 @@ NTSTATUS closeWFP(VOID) {
 	
 	if (CalloutId == 0)
 		return status;
+
+	FwpsRedirectHandleDestroy(RedirectHandle);
 
 	status = FwpsCalloutUnregisterById(CalloutId);
 

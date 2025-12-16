@@ -1,4 +1,4 @@
-#include <Windows.h>
+
 #include "wfp_user_handler.h"
 #include <iostream>
 
@@ -15,7 +15,13 @@ DEFINE_GUID(
     0x4562,
     0xaa, 0x7d, 0x0a, 0x67, 0xcf, 0xca, 0xf9, 0xa3
 );
-
+DEFINE_GUID(
+    FWPM_LAYER_ALE_CONNECT_REDIRECT_V6,
+    0x587e54a8,
+    0x22c4,
+    0x4527,
+    0x9d, 0x9c, 0x54, 0xcb, 0x36, 0x1f, 0x7e, 0x7e
+);
 DEFINE_GUID(
     PROVIDER_KEY,
     0x3437e444,
@@ -28,7 +34,7 @@ static HANDLE handle = nullptr;
 
 
 
-bool SetupWFP() {
+DWORD SetupWFP() {
 
     DWORD success = ERROR_SUCCESS;
     
