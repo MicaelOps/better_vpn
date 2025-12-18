@@ -8,3 +8,4 @@
 
 NTSTATUS closeWFP(VOID);
 NTSTATUS InitWFP(PDEVICE_OBJECT DeviceObject);
+NTSTATUS HandleVPNControlCommunication(PDEVICE_OBJECT DeviceObject, PIRP irp);

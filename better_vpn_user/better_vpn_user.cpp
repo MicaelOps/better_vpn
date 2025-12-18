@@ -259,7 +259,9 @@ cleanup:
 }
 
 bool SendIOCTLMessage(ULONG code, HANDLE devicehandle, PIO_BUFFER in, PIO_BUFFER out) {
-    return DeviceIoControl(devicehandle, code, in->buffer, in->size, out->buffer, out->size, nullptr, nullptr);
+    DWORD bytesReturned = 0;
+    DeviceIoControl(devicehandle, code, in->buffer, in->size, out->buffer, out->size, &bytesReturned, nullptr);
+    return DeviceIoControl(devicehandle, code, in->buffer, in->size, out->buffer, out->size, &bytesReturned, nullptr);
 }
 bool SendIOCTLMessage(ULONG code, HANDLE devicehandle) {
     IO_BUFFER in{0, nullptr}, out{ 0, nullptr };
@@ -295,12 +297,14 @@ int SendInitialProxyServerInfo(LPSTR hostname, LPSTR port, HANDLE handle) {
         return -1;
     }
 
-    IO_BUFFER inData ={ sizeof(proxyaddrinfo), &proxyaddrinfo };
+    IO_BUFFER inData ={ sizeof(proxyaddrinfo->ai_addr), &proxyaddrinfo->ai_addr };
     IO_BUFFER outData ={ 0, nullptr };
 
     if (!SendIOCTLMessage(IOCTL_VPS_SERVER_ADDRESS_CHANGE, handle, &inData, &outData)) {
         std::cout << "Unable to send message to the driver Error: " << GetLastError();
         return -1;
     }
+
+    freeaddrinfo(proxyaddrinfo);
     return ERROR_SUCCESS;
 }

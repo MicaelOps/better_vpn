@@ -8,6 +8,13 @@ VPN Project
 
 Logs (rants, vents and afterthoughts):
 
+18/12/2025
+- My brothers in Christ. I legit don't know how to set the remote address to my specific address.
+- MSDN docs says that I should use INET_SETADDRESS but that macro doesnt even exist!! WTF?
+- Now im trying to unsuccessfully send a sockaddr obtained from getaddrinfo to cast it to SOCKADDR_STORAGE which is not working.
+- Is asking AI my last resort? Lets give it a few more tries...
+
+
 13/12/2025
 - Started grinding Leetcode (again) so I can start applying for jobs. Therefore, I will not have alot of time for cooler things like this.
 - Kinda hard juggling between my full-time useless admin job, programming my FUN projects, my other hobbies (piano,novels,gaming, etc), grinding leetcode

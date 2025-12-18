@@ -34,6 +34,7 @@ static HANDLE handle = nullptr;
 
 
 
+
 DWORD SetupWFP() {
 
     DWORD success = ERROR_SUCCESS;
@@ -67,6 +68,7 @@ cleanup:
     if (success != ERROR_SUCCESS) {
         FwpmTransactionAbort(handle);
         FwpmEngineClose(handle);
+        
         return false;
     }
     return true;
