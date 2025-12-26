@@ -4,9 +4,15 @@ VPN Project
 
 -> better_vpn_driver = Implements the big boy's redirection and encryption
 
--> better_vpn_server (to be created) = the middleman
+-> better_vpn_server = The Proxy, receives the packets from the better_vpn_user and acts as the middle man
 
 Logs (rants, vents and afterthoughts):
+
+26/12/2025
+- Okkkk, welcome back myself to this project after a suboptimal grind of leetcode (ive only done like 3 easy-meadium dyanmic programming exercises)
+- A little bit out of touch so I will just do the server bit which is the easiest to do.
+- It literally is just receiving the connections like I did in the Minecraft Server, get the packet data which contains the actual inteded destination and parameters and do the connection!
+- Although, I realised I might need to perform a in-depth inspection to avoid sending the IP Address over packet data. (like programs obtaining from the application layer)
 
 18/12/2025
 - My brothers in Christ. I legit don't know how to set the remote address to my specific address.
