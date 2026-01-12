@@ -81,10 +81,8 @@ static VOID NTAPI ClassifyFn(
 			status = FwpsAcquireWritableLayerDataPointer(ClassifyHandle, filter->filterId, 0, &writableLayerData, &ClassifyOut);
 
 			FWPS_CONNECT_REQUEST* connectRequest = (FWPS_CONNECT_REQUEST*) writableLayerData;
-			connectRequest->localAddressAndPort = (SOCKADDR_STORAGE) currProxyServer;
-
-			
-			
+			RtlZeroMemory(&connectRequest->localAddressAndPort, sizeof(connectRequest->localAddressAndPort));
+			RtlCopyMemory(&connectRequest->localAddressAndPort, &currProxyServer, sizeof(currProxyServer));
 			FwpsApplyModifiedLayerData(ClassifyHandle, writableLayerData, 0);
 			
 			FwpsReleaseClassifyHandle(ClassifyHandle);

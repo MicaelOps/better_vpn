@@ -8,6 +8,12 @@ VPN Project
 
 Logs (rants, vents and afterthoughts):
 
+12/01/2025
+- we are so back, we are finishing this.
+- Instead of trying to cast SOCKADDR_STORAGE from a SOCKADDR struct why not just copy and write memory directly?
+- Feels sketchy but thats just C? Anyways, haven't tested but its gonna fail. 100%.
+- Maybe this is why AI is gonna be amazing, i just need to think of great ideas not care too much about production.
+
 26/12/2025
 - Okkkk, welcome back myself to this project after a suboptimal grind of leetcode (ive only done like 3 easy-meadium dyanmic programming exercises)
 - A little bit out of touch so I will just do the server bit which is the easiest to do.

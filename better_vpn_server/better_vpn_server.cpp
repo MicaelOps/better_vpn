@@ -89,6 +89,7 @@ bool startupServer() {
     EXIT_ON_ERROR(listen(listenSocket, 300), errorCode, "listen");
 
     DWORD bytesReturned;
+
     EXIT_ON_ERROR(WSAIoctl(listenSocket,
         SIO_GET_EXTENSION_FUNCTION_POINTER,
         &guidAcceptEx,
@@ -98,7 +99,6 @@ bool startupServer() {
         &bytesReturned,
         nullptr,
         nullptr),
-
         errorCode, "WSAIoctl");
 
 
