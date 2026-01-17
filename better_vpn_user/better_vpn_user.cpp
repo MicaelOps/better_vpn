@@ -291,13 +291,16 @@ int GetProxySockAddr(LPSTR hostname, LPSTR port, OUT addrinfo*& addr) {
 int SendInitialProxyServerInfo(LPSTR hostname, LPSTR port, HANDLE handle) {
 
     addrinfo* proxyaddrinfo;
+
+    std::cout << "Proxy Server: " << hostname << " : " << port << "\n";
     
     if (GetProxySockAddr(hostname, port, proxyaddrinfo) != ERROR_SUCCESS) {
         std::cout << "Unable to get socket address.";
         return -1;
     }
 
-    IO_BUFFER inData ={ sizeof(proxyaddrinfo->ai_addr), &proxyaddrinfo->ai_addr };
+    IO_BUFFER inData ={ (DWORD)proxyaddrinfo->ai_addrlen, &proxyaddrinfo->ai_addr };
+    std::cout << "Socket struct size " << inData.size << " \n";
     IO_BUFFER outData ={ 0, nullptr };
 
     if (!SendIOCTLMessage(IOCTL_VPS_SERVER_ADDRESS_CHANGE, handle, &inData, &outData)) {

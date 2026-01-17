@@ -38,7 +38,8 @@ static HANDLE handle = nullptr;
 DWORD SetupWFP() {
 
     DWORD success = ERROR_SUCCESS;
-    
+    wchar_t v6filtername[] = L"v6 bettervpn filter";
+    wchar_t v4filtername[] = L"v4 bettervpn filter";
     // one filter is responsible for redirecting IPv4 IPv6 connections to the VPN Server
     // Other filter is responsible for getting the clone the packet data and inject a new packet with encrypted data to the stream
     FWPM_FILTER redirectFilterv4, redirectFilterv6, packetdataFilter;
@@ -54,13 +55,14 @@ DWORD SetupWFP() {
     redirectFilterv4.action.type = FWP_ACTION_PERMIT;
     redirectFilterv4.weight.type = FWP_EMPTY;
     redirectFilterv4.numFilterConditions = 0;
+    redirectFilterv4.displayData.name = v4filtername;
     EXIT_ON_ERROR(FwpmFilterAdd(handle, &redirectFilterv4, NULL, NULL), success, "FilterAdd V4");
 
     redirectFilterv6.layerKey = FWPM_LAYER_ALE_CONNECT_REDIRECT_V6;
     redirectFilterv6.action.type = FWP_ACTION_PERMIT;
     redirectFilterv6.weight.type = FWP_EMPTY;
     redirectFilterv6.numFilterConditions = 0;
-
+    redirectFilterv6.displayData.name = v6filtername;
     EXIT_ON_ERROR(FwpmFilterAdd(handle, &redirectFilterv6, NULL, NULL), success, "FilterAdd V6");
     EXIT_ON_ERROR(FwpmTransactionCommit(handle), success, "TransactionCommit");
 
@@ -69,9 +71,9 @@ cleanup:
         FwpmTransactionAbort(handle);
         FwpmEngineClose(handle);
         
-        return false;
+        return -1;
     }
-    return true;
+    return 0;
 }
 
 void CloseWFP() {

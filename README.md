@@ -1,18 +1,23 @@
 VPN Project
 
--> better_vpn_user = Starts the driver and registers the filters
+-> better_vpn_user = Starts the kernel driver and registers the filters
 
--> better_vpn_driver = Implements the big boy's redirection and encryption
+-> better_vpn = Implements redirection and encryption
 
 -> better_vpn_server = The Proxy, receives the packets from the better_vpn_user and acts as the middle man
 
 Logs (rants, vents and afterthoughts):
 
+17/01/2025
+- We reached our first Blue Scren of Death!! Very exciting!
+- Now we have to debug the kernel like pros! 
+
+
 12/01/2025
 - we are so back, we are finishing this.
 - Instead of trying to cast SOCKADDR_STORAGE from a SOCKADDR struct why not just copy and write memory directly?
 - Feels sketchy but thats just C? Anyways, haven't tested but its gonna fail. 100%.
-- Maybe this is why AI is gonna be amazing, i just need to think of great ideas not care too much about production.
+- Maybe this is why AI is gonna be amazing, i just need to think of great ideas and not care too much about production.
 
 26/12/2025
 - Okkkk, welcome back myself to this project after a suboptimal grind of leetcode (ive only done like 3 easy-meadium dyanmic programming exercises)

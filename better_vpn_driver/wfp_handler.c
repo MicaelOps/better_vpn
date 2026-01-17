@@ -20,18 +20,11 @@ typedef struct TESTSOCKADDR {
 	char data[14];
 } *PTESTSOCKADDR;
 
-DEFINE_GUID(
-
-	PROVIDER_KEY,
-	0x3437e444,
-	0xacf5,
-	0x4bdf,
-	0x96, 0xa7, 0x31, 0x83, 0x08, 0x38 0x29, 0xee
-);
 
 UINT32 CalloutId = 0;
 HANDLE RedirectHandle = NULL;
-struct TESTSOCKADDR currProxyServer;
+BOOL redirecting = TRUE;
+struct TESTSOCKADDR currProxyServer = { 0, "adas" };
 
 
 
@@ -69,7 +62,7 @@ static VOID NTAPI ClassifyFn(
 
 			
 			UINT64 ClassifyHandle;
-			NTSTATUS status = FwpsAcquireClassifyHandle(classifyContext, 0, &ClassifyHandle);
+			NTSTATUS status = FwpsAcquireClassifyHandle((void*)classifyContext, 0, &ClassifyHandle);
 
 			if (!NT_SUCCESS(status)) {
 				DbgPrint("Unable to FwpsAcquireClassifyHandle. Error Code: %ld", status);
@@ -77,12 +70,18 @@ static VOID NTAPI ClassifyFn(
 			}
 
 			FWPS_CLASSIFY_OUT ClassifyOut;
+			RtlZeroMemory(&ClassifyOut, sizeof(FWPS_CLASSIFY_OUT));
+
 			PVOID writableLayerData;
 			status = FwpsAcquireWritableLayerDataPointer(ClassifyHandle, filter->filterId, 0, &writableLayerData, &ClassifyOut);
 
 			FWPS_CONNECT_REQUEST* connectRequest = (FWPS_CONNECT_REQUEST*) writableLayerData;
-			RtlZeroMemory(&connectRequest->localAddressAndPort, sizeof(connectRequest->localAddressAndPort));
-			RtlCopyMemory(&connectRequest->localAddressAndPort, &currProxyServer, sizeof(currProxyServer));
+
+			// Checking if we have a valid proxyServer and we are redirecting
+			if (currProxyServer.family != 0 && redirecting == TRUE) {
+				RtlZeroMemory(&connectRequest->localAddressAndPort, sizeof(connectRequest->localAddressAndPort));
+				RtlCopyMemory(&connectRequest->localAddressAndPort, &currProxyServer, sizeof(currProxyServer));
+			}
 			FwpsApplyModifiedLayerData(ClassifyHandle, writableLayerData, 0);
 			
 			FwpsReleaseClassifyHandle(ClassifyHandle);
@@ -164,6 +163,12 @@ NTSTATUS InitWFP(PDEVICE_OBJECT DeviceObject) {
 		goto error;
 	}
 
+	const GUID PROVIDER_KEY = {
+		0x3437e444,
+		0xacf5,
+		0x4bdf,
+		0x96, 0xa7, 0x31, 0x83, 0x08, 0x38, 0x29, 0xee };
+
 	status = FwpsRedirectHandleCreate(&PROVIDER_KEY,0,&RedirectHandle);
 
 	if (!NT_SUCCESS(status)) {
@@ -201,7 +206,7 @@ NTSTATUS HandleVPNControlCommunication(PDEVICE_OBJECT DeviceObject, PIRP irp) {
 		ULONG size = irpStack->Parameters.DeviceIoControl.InputBufferLength;
 		void* buf = irp->UserBuffer;
 
-		DbgPrint("Received IOCTL_VPS_SERVER_ADDRESS_CHANGE call with size %ld ", size);
+		DbgPrint("Received IOCTL_VPS_SERVER_ADDRESS_CHANGE call with size %ld \n", size);
 
 		if(size >= sizeof(currProxyServer))
 			RtlCopyMemory((void*)&currProxyServer, buf, sizeof(currProxyServer));
@@ -209,6 +214,7 @@ NTSTATUS HandleVPNControlCommunication(PDEVICE_OBJECT DeviceObject, PIRP irp) {
 		IoCompleteRequest(irp, IO_NO_INCREMENT);
 		break;
 	case IOCTL_VPS_TOGGLE_REDIRECT:
+		redirecting = ~redirecting;
 		irp->IoStatus.Status = STATUS_SUCCESS;
 		irp->IoStatus.Information = 0;
 		IoCompleteRequest(irp, IO_NO_INCREMENT);
