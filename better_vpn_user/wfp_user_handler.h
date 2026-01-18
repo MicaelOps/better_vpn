@@ -20,5 +20,8 @@
 #pragma comment(lib, "fwpuclnt.lib") 
 #pragma comment(lib, "advapi32.lib")
 
+
+
+
 void CloseWFP();
 DWORD SetupWFP();

@@ -1,4 +1,4 @@
-
+#include <initguid.h>
 #include "wfp_user_handler.h"
 #include <iostream>
 
@@ -8,66 +8,64 @@
         goto cleanup; \
     }
 
-DEFINE_GUID(
-    FWPM_LAYER_ALE_CONNECT_REDIRECT_V4,
-    0xc6e63c8c,
-    0xb784,
-    0x4562,
-    0xaa, 0x7d, 0x0a, 0x67, 0xcf, 0xca, 0xf9, 0xa3
-);
-DEFINE_GUID(
-    FWPM_LAYER_ALE_CONNECT_REDIRECT_V6,
-    0x587e54a8,
-    0x22c4,
-    0x4527,
-    0x9d, 0x9c, 0x54, 0xcb, 0x36, 0x1f, 0x7e, 0x7e
-);
-DEFINE_GUID(
-    PROVIDER_KEY,
+
+DEFINE_GUID(CALLOUT_KEY, 0x7c334a77, 0xe480, 0x4a87, 0x87, 0x7a, 0x0e, 0x7f, 0xc8, 0x14, 0x61, 0xe3);
+DEFINE_GUID(PROVIDER_KEY,
     0x3437e444,
     0xacf5,
     0x4bdf,
-    0x96, 0xa7, 0x31, 0x83, 0x08, 0x38, 0x29, 0xee
-);
-
+    0x96, 0xa7, 0x31, 0x83, 0x08, 0x38, 0x29, 0xee);
 static HANDLE handle = nullptr;
-
 
 
 
 DWORD SetupWFP() {
 
     DWORD success = ERROR_SUCCESS;
+    UINT32 CalloutID = 0;
+
     wchar_t v6filtername[] = L"v6 bettervpn filter";
     wchar_t v4filtername[] = L"v4 bettervpn filter";
+
+    FWPM_CALLOUT calloutm = { };
+    calloutm.displayData.name = v4filtername;
+    calloutm.displayData.description = v4filtername;
+    calloutm.flags = 0;
+    calloutm.calloutKey = CALLOUT_KEY;
+    calloutm.applicableLayer = FWPM_LAYER_ALE_CONNECT_REDIRECT_V4;
+
     // one filter is responsible for redirecting IPv4 IPv6 connections to the VPN Server
     // Other filter is responsible for getting the clone the packet data and inject a new packet with encrypted data to the stream
     FWPM_FILTER redirectFilterv4, redirectFilterv6, packetdataFilter;
 
     EXIT_ON_ERROR(FwpmEngineOpen(NULL, RPC_C_AUTHN_DEFAULT, NULL, NULL, &handle), success, "EngineOpen");
     EXIT_ON_ERROR(FwpmTransactionBegin(handle, 0), success, "TransactionBegin");
+    EXIT_ON_ERROR(FwpmCalloutAdd(handle, &calloutm, NULL, &CalloutID), success, "FwpmCalloutAdd");
 
     RtlZeroMemory(&redirectFilterv4, sizeof(FWPM_FILTER));
     RtlZeroMemory(&redirectFilterv6, sizeof(FWPM_FILTER));
     RtlZeroMemory(&packetdataFilter, sizeof(FWPM_FILTER));
 
     redirectFilterv4.layerKey = FWPM_LAYER_ALE_CONNECT_REDIRECT_V4;
-    redirectFilterv4.action.type = FWP_ACTION_PERMIT;
+    redirectFilterv4.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
+    redirectFilterv4.action.calloutKey = CALLOUT_KEY;
     redirectFilterv4.weight.type = FWP_EMPTY;
     redirectFilterv4.numFilterConditions = 0;
     redirectFilterv4.displayData.name = v4filtername;
     EXIT_ON_ERROR(FwpmFilterAdd(handle, &redirectFilterv4, NULL, NULL), success, "FilterAdd V4");
 
-    redirectFilterv6.layerKey = FWPM_LAYER_ALE_CONNECT_REDIRECT_V6;
-    redirectFilterv6.action.type = FWP_ACTION_PERMIT;
+    /*redirectFilterv6.layerKey = FWPM_LAYER_ALE_CONNECT_REDIRECT_V6;
+    redirectFilterv6.action.type = FWP_ACTION_CALLOUT_UNKNOWN;
+    redirectFilterv6.action.calloutKey = CALLOUT_KEY;
     redirectFilterv6.weight.type = FWP_EMPTY;
     redirectFilterv6.numFilterConditions = 0;
     redirectFilterv6.displayData.name = v6filtername;
-    EXIT_ON_ERROR(FwpmFilterAdd(handle, &redirectFilterv6, NULL, NULL), success, "FilterAdd V6");
+    EXIT_ON_ERROR(FwpmFilterAdd(handle, &redirectFilterv6, NULL, NULL), success, "FilterAdd V6");*/
     EXIT_ON_ERROR(FwpmTransactionCommit(handle), success, "TransactionCommit");
 
 cleanup:
     if (success != ERROR_SUCCESS) {
+        FwpmCalloutDeleteByKey(handle, &CALLOUT_KEY);
         FwpmTransactionAbort(handle);
         FwpmEngineClose(handle);
         
@@ -77,5 +75,6 @@ cleanup:
 }
 
 void CloseWFP() {
+    FwpmCalloutDeleteByKey(handle, &CALLOUT_KEY);
     FwpmEngineClose(handle);
 }

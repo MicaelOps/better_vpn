@@ -8,19 +8,25 @@ VPN Project
 
 Logs (rants, vents and afterthoughts):
 
-17/01/2025
+
+18/01/2026
+- omg i just noticed ive been putting 2025 in my timestamps
+- I am very close to successfully redirect the packets.
+- However ive been glitching the Windows VM too often and its making the experience soo tiring.
+
+17/01/2026
 - We reached our first Blue Scren of Death!! Very exciting!
 - Now we have to debug the kernel like pros! 
 
 
-12/01/2025
+12/01/2026
 - we are so back, we are finishing this.
 - Instead of trying to cast SOCKADDR_STORAGE from a SOCKADDR struct why not just copy and write memory directly?
 - Feels sketchy but thats just C? Anyways, haven't tested but its gonna fail. 100%.
 - Maybe this is why AI is gonna be amazing, i just need to think of great ideas and not care too much about production.
 
 26/12/2025
-- Okkkk, welcome back myself to this project after a suboptimal grind of leetcode (ive only done like 3 easy-meadium dyanmic programming exercises)
+- Okkkk, welcome back myself to this project after a suboptimal grind of leetcode (ive only done like 3 easy-medium dynamic programming exercises)
 - A little bit out of touch so I will just do the server bit which is the easiest to do.
 - It literally is just receiving the connections like I did in the Minecraft Server, get the packet data which contains the actual inteded destination and parameters and do the connection!
 - Although, I realised I might need to perform a in-depth inspection to avoid sending the IP Address over packet data. (like programs obtaining from the application layer)

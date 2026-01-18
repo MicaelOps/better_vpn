@@ -298,8 +298,9 @@ int SendInitialProxyServerInfo(LPSTR hostname, LPSTR port, HANDLE handle) {
         std::cout << "Unable to get socket address.";
         return -1;
     }
-
-    IO_BUFFER inData ={ (DWORD)proxyaddrinfo->ai_addrlen, &proxyaddrinfo->ai_addr };
+    char data[16];
+    RtlCopyMemory(data, proxyaddrinfo->ai_addr, proxyaddrinfo->ai_addrlen);
+    IO_BUFFER inData ={ (DWORD)proxyaddrinfo->ai_addrlen, data };
     std::cout << "Socket struct size " << inData.size << " \n";
     IO_BUFFER outData ={ 0, nullptr };
 

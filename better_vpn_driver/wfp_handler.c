@@ -1,6 +1,5 @@
+
 #include "wfp_handler.h"
-
-
 
 // User Mode requests an address change for the packet.
 #define IOCTL_VPS_SERVER_ADDRESS_CHANGE \
@@ -14,6 +13,16 @@
 #define IOCTL_VPS_TOGGLE_ENCRYPTION \
     CTL_CODE(FILE_DEVICE_UNKNOWN, 0x802, METHOD_BUFFERED, FILE_ANY_ACCESS)
 
+const GUID CALLOUT_KEY = { 0x7c334a77,
+							0xe480,
+							0x4a87,
+							0x87, 0x7a, 0x0e, 0x7f, 0xc8, 0x14, 0x61, 0xe3};
+
+const GUID PROVIDER_KEY = {
+	0x3437e444,
+	0xacf5,
+	0x4bdf,
+	0x96, 0xa7, 0x31, 0x83, 0x08, 0x38, 0x29, 0xee };
 
 typedef struct TESTSOCKADDR {
 	unsigned short family;
@@ -47,20 +56,18 @@ static VOID NTAPI ClassifyFn(
 	UNREFERENCED_PARAMETER(flowContext);
 	UNREFERENCED_PARAMETER(classifyOut);
 
+	DbgPrint("something made it into classify??? \n");
 	if (filter == NULL) 
 		return;
 	
 	if (inFixedValues->layerId == FWPS_LAYER_ALE_CONNECT_REDIRECT_V4 || inFixedValues->layerId == FWPS_LAYER_ALE_CONNECT_REDIRECT_V6) {
-
-		if (filter->action.type == FWP_ACTION_PERMIT) {
-
+		if (filter->action.type != FWP_ACTION_BLOCK) {
 			// Checking if the Filter has already been previously redirected by our callout driver
 			FWPS_CONNECTION_REDIRECT_STATE redirectState = FwpsQueryConnectionRedirectState(inMetaValues->redirectRecords, RedirectHandle, NULL);
 
 			if (redirectState == FWPS_CONNECTION_PREVIOUSLY_REDIRECTED_BY_SELF || redirectState == FWPS_CONNECTION_REDIRECTED_BY_SELF)
 				return;
 
-			
 			UINT64 ClassifyHandle;
 			NTSTATUS status = FwpsAcquireClassifyHandle((void*)classifyContext, 0, &ClassifyHandle);
 
@@ -68,7 +75,6 @@ static VOID NTAPI ClassifyFn(
 				DbgPrint("Unable to FwpsAcquireClassifyHandle. Error Code: %ld", status);
 				return;
 			}
-
 			FWPS_CLASSIFY_OUT ClassifyOut;
 			RtlZeroMemory(&ClassifyOut, sizeof(FWPS_CLASSIFY_OUT));
 
@@ -79,9 +85,11 @@ static VOID NTAPI ClassifyFn(
 
 			// Checking if we have a valid proxyServer and we are redirecting
 			if (currProxyServer.family != 0 && redirecting == TRUE) {
-				RtlZeroMemory(&connectRequest->localAddressAndPort, sizeof(connectRequest->localAddressAndPort));
-				RtlCopyMemory(&connectRequest->localAddressAndPort, &currProxyServer, sizeof(currProxyServer));
+				DbgPrint("Packet redirected?! \n");
+				RtlZeroMemory(&connectRequest->remoteAddressAndPort, sizeof(connectRequest->remoteAddressAndPort));
+				RtlCopyMemory(&connectRequest->remoteAddressAndPort, &currProxyServer, sizeof(currProxyServer));
 			}
+
 			FwpsApplyModifiedLayerData(ClassifyHandle, writableLayerData, 0);
 			
 			FwpsReleaseClassifyHandle(ClassifyHandle);
@@ -102,6 +110,7 @@ static NTSTATUS NTAPI NotifyFn(
 
 	NT_ASSERT(filter);
 
+	DbgPrint("Some filter is being added?? \n");
 	switch (notifyType) {
 		case FWPS_CALLOUT_NOTIFY_ADD_FILTER:
 		case FWPS_CALLOUT_NOTIFY_DELETE_FILTER:
@@ -119,15 +128,10 @@ static VOID NTAPI FlowDeleteFn(
 	UNREFERENCED_PARAMETER(layerId);
 	UNREFERENCED_PARAMETER(calloutId);
 	UNREFERENCED_PARAMETER(flowContext);
+
+	DbgPrint("Some filter is being DELETED?? \n");
 }
 
-const FWPS_CALLOUT Callout = {
-	{ 0x7c334a77, 0xe480, 0x4a87, { 0x87, 0x7a, 0x0e, 0x7f, 0xc8, 0x14, 0x61, 0xe3 } },
-	0,
-	ClassifyFn,
-	NotifyFn,
-	FlowDeleteFn
-};
 
 
 NTSTATUS closeWFP(VOID) {
@@ -154,20 +158,22 @@ NTSTATUS InitWFP(PDEVICE_OBJECT DeviceObject) {
 
 	UNREFERENCED_PARAMETER(DeviceObject);
 
+	FWPS_CALLOUT Callout = {
+			CALLOUT_KEY,
+			0,
+			ClassifyFn,
+			NotifyFn,
+			FlowDeleteFn};
+
 	// Registering the callout.
 	status = FwpsCalloutRegister(DeviceObject, &Callout, &CalloutId);
-
+	
 
 	if (!NT_SUCCESS(status)) {
-		DbgPrint("Unable to load FwpmEngineOpen, Error: %ld \n", status);
+		DbgPrint("Unable to load FwpsCalloutRegister, Error: %ld \n", status);
 		goto error;
 	}
 
-	const GUID PROVIDER_KEY = {
-		0x3437e444,
-		0xacf5,
-		0x4bdf,
-		0x96, 0xa7, 0x31, 0x83, 0x08, 0x38, 0x29, 0xee };
 
 	status = FwpsRedirectHandleCreate(&PROVIDER_KEY,0,&RedirectHandle);
 
@@ -204,12 +210,13 @@ NTSTATUS HandleVPNControlCommunication(PDEVICE_OBJECT DeviceObject, PIRP irp) {
 		irp->IoStatus.Information = 0;
 
 		ULONG size = irpStack->Parameters.DeviceIoControl.InputBufferLength;
-		void* buf = irp->UserBuffer;
+		void* buf = irp->AssociatedIrp.SystemBuffer;
 
 		DbgPrint("Received IOCTL_VPS_SERVER_ADDRESS_CHANGE call with size %ld \n", size);
-
-		if(size >= sizeof(currProxyServer))
-			RtlCopyMemory((void*)&currProxyServer, buf, sizeof(currProxyServer));
+		if (size >= sizeof(currProxyServer)) {
+			RtlCopyMemory(&currProxyServer, buf, size);
+		}
+		DbgPrint("IOCTL_VPS_SERVER_ADDRESS_CHANGE completed %ld \n", size);
 
 		IoCompleteRequest(irp, IO_NO_INCREMENT);
 		break;
