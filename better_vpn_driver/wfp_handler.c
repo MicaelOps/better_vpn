@@ -56,16 +56,15 @@ static VOID NTAPI ClassifyFn(
 	UNREFERENCED_PARAMETER(flowContext);
 	UNREFERENCED_PARAMETER(classifyOut);
 
-	DbgPrint("something made it into classify??? \n");
 	if (filter == NULL) 
 		return;
 	
-	if (inFixedValues->layerId == FWPS_LAYER_ALE_CONNECT_REDIRECT_V4 || inFixedValues->layerId == FWPS_LAYER_ALE_CONNECT_REDIRECT_V6) {
+	if (inFixedValues->layerId == FWPS_LAYER_ALE_CONNECT_REDIRECT_V4) {
 		if (filter->action.type != FWP_ACTION_BLOCK) {
 			// Checking if the Filter has already been previously redirected by our callout driver
 			FWPS_CONNECTION_REDIRECT_STATE redirectState = FwpsQueryConnectionRedirectState(inMetaValues->redirectRecords, RedirectHandle, NULL);
 
-			if (redirectState == FWPS_CONNECTION_PREVIOUSLY_REDIRECTED_BY_SELF || redirectState == FWPS_CONNECTION_REDIRECTED_BY_SELF)
+			if (redirectState != FWPS_CONNECTION_NOT_REDIRECTED || !redirecting)
 				return;
 
 			UINT64 ClassifyHandle;
@@ -75,16 +74,23 @@ static VOID NTAPI ClassifyFn(
 				DbgPrint("Unable to FwpsAcquireClassifyHandle. Error Code: %ld", status);
 				return;
 			}
-			FWPS_CLASSIFY_OUT ClassifyOut;
-			RtlZeroMemory(&ClassifyOut, sizeof(FWPS_CLASSIFY_OUT));
 
 			PVOID writableLayerData;
-			status = FwpsAcquireWritableLayerDataPointer(ClassifyHandle, filter->filterId, 0, &writableLayerData, &ClassifyOut);
+			status = FwpsAcquireWritableLayerDataPointer(ClassifyHandle, filter->filterId, 0, &writableLayerData, classifyOut);
+
+
+			if (!NT_SUCCESS(status)) {
+				DbgPrint("Unable to FwpsAcquireWritableLayerDataPointer. Error Code: %ld", status);
+				return;
+			}
+
+			classifyOut->actionType = FWP_ACTION_PERMIT;
+			classifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
 
 			FWPS_CONNECT_REQUEST* connectRequest = (FWPS_CONNECT_REQUEST*) writableLayerData;
 
 			// Checking if we have a valid proxyServer and we are redirecting
-			if (currProxyServer.family != 0 && redirecting == TRUE) {
+			if (currProxyServer.family != 0) {
 				DbgPrint("Packet redirected?! \n");
 				RtlZeroMemory(&connectRequest->remoteAddressAndPort, sizeof(connectRequest->remoteAddressAndPort));
 				RtlCopyMemory(&connectRequest->remoteAddressAndPort, &currProxyServer, sizeof(currProxyServer));

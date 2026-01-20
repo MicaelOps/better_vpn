@@ -9,6 +9,11 @@ VPN Project
 Logs (rants, vents and afterthoughts):
 
 
+20/01/2026
+- NICE!!! WE ARE REDIRECTING!!! 
+- However, I think we are redirecting everything, and when i mean everything, i really mean everything.
+- I cant ping, i cant access websites i cant do anything.
+
 18/01/2026
 - omg i just noticed ive been putting 2025 in my timestamps
 - I am very close to successfully redirect the packets.
