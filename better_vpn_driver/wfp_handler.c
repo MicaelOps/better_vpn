@@ -1,5 +1,6 @@
 
 #include "wfp_handler.h"
+#include <ntstrsafe.h>
 
 // User Mode requests an address change for the packet.
 #define IOCTL_VPS_SERVER_ADDRESS_CHANGE \
@@ -24,16 +25,10 @@ const GUID PROVIDER_KEY = {
 	0x4bdf,
 	0x96, 0xa7, 0x31, 0x83, 0x08, 0x38, 0x29, 0xee };
 
-typedef struct TESTSOCKADDR {
-	unsigned short family;
-	char data[14];
-} *PTESTSOCKADDR;
-
-
 UINT32 CalloutId = 0;
 HANDLE RedirectHandle = NULL;
 BOOL redirecting = TRUE;
-struct TESTSOCKADDR currProxyServer = { 0, "adas" };
+SOCKADDR_STORAGE currProxyServer = { 0 };
 
 
 
@@ -84,16 +79,35 @@ static VOID NTAPI ClassifyFn(
 				return;
 			}
 
-			classifyOut->actionType = FWP_ACTION_PERMIT;
-			classifyOut->rights &= ~FWPS_RIGHT_ACTION_WRITE;
-
+			
 			FWPS_CONNECT_REQUEST* connectRequest = (FWPS_CONNECT_REQUEST*) writableLayerData;
+			SOCKADDR_IN* sin = (SOCKADDR_IN*) &connectRequest->remoteAddressAndPort;
+
+			// CORRECT ENDIANESS
+			USHORT correct_port = RtlUshortByteSwap(sin->sin_port);
+			DbgPrint(
+				"IP Address %u.%u.%u.%u Port %u\n",
+				(unsigned int)sin->sin_addr.S_un.S_un_b.s_b1,
+				(unsigned int)sin->sin_addr.S_un.S_un_b.s_b2,
+				(unsigned int)sin->sin_addr.S_un.S_un_b.s_b3,
+				(unsigned int)sin->sin_addr.S_un.S_un_b.s_b4,
+				correct_port
+			);
+			
 
 			// Checking if we have a valid proxyServer and we are redirecting
-			if (currProxyServer.family != 0) {
+			// Also checking that we do not change the DNS functionalities
+			if (currProxyServer.ss_family == AF_INET && correct_port != 53 && correct_port != 5353 && correct_port != 138) {
 				DbgPrint("Packet redirected?! \n");
-				RtlZeroMemory(&connectRequest->remoteAddressAndPort, sizeof(connectRequest->remoteAddressAndPort));
-				RtlCopyMemory(&connectRequest->remoteAddressAndPort, &currProxyServer, sizeof(currProxyServer));
+				
+				RtlCopyMemory(&connectRequest->remoteAddressAndPort, &currProxyServer, sizeof(SOCKADDR_IN));
+				// Verify what was actually written
+				DbgPrint("AFTER COPY: %u.%u.%u.%u:%u\n",
+					sin->sin_addr.S_un.S_un_b.s_b1,
+					sin->sin_addr.S_un.S_un_b.s_b2,
+					sin->sin_addr.S_un.S_un_b.s_b3,
+					sin->sin_addr.S_un.S_un_b.s_b4,
+					RtlUshortByteSwap(sin->sin_port));
 			}
 
 			FwpsApplyModifiedLayerData(ClassifyHandle, writableLayerData, 0);
@@ -219,15 +233,28 @@ NTSTATUS HandleVPNControlCommunication(PDEVICE_OBJECT DeviceObject, PIRP irp) {
 		void* buf = irp->AssociatedIrp.SystemBuffer;
 
 		DbgPrint("Received IOCTL_VPS_SERVER_ADDRESS_CHANGE call with size %ld \n", size);
-		if (size >= sizeof(currProxyServer)) {
-			RtlCopyMemory(&currProxyServer, buf, size);
-		}
-		DbgPrint("IOCTL_VPS_SERVER_ADDRESS_CHANGE completed %ld \n", size);
+		if (size >= sizeof(SOCKADDR_IN)) {
+			RtlZeroMemory(&currProxyServer, sizeof(currProxyServer));
+			RtlCopyMemory(&currProxyServer, buf, sizeof(SOCKADDR_IN));
 
+			SOCKADDR_IN* sin = (SOCKADDR_IN*)&currProxyServer;
+			USHORT correct_port = RtlUshortByteSwap(sin->sin_port);
+
+			DbgPrint(
+				"IOCTL_VPS_SERVER_ADDRESS_CHANGE Proxy Server %u.%u.%u.%u Port %u\n",
+				(unsigned int)sin->sin_addr.S_un.S_un_b.s_b1,
+				(unsigned int)sin->sin_addr.S_un.S_un_b.s_b2,
+				(unsigned int)sin->sin_addr.S_un.S_un_b.s_b3,
+				(unsigned int)sin->sin_addr.S_un.S_un_b.s_b4,
+				correct_port
+			);
+
+		}
 		IoCompleteRequest(irp, IO_NO_INCREMENT);
 		break;
 	case IOCTL_VPS_TOGGLE_REDIRECT:
-		redirecting = ~redirecting;
+		DbgPrint("IOCTL_VPS_TOGGLE_REDIRECT call received value of redirecting %d \n", redirecting);
+		redirecting = !redirecting;
 		irp->IoStatus.Status = STATUS_SUCCESS;
 		irp->IoStatus.Information = 0;
 		IoCompleteRequest(irp, IO_NO_INCREMENT);

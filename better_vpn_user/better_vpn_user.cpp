@@ -260,7 +260,6 @@ cleanup:
 
 bool SendIOCTLMessage(ULONG code, HANDLE devicehandle, PIO_BUFFER in, PIO_BUFFER out) {
     DWORD bytesReturned = 0;
-    DeviceIoControl(devicehandle, code, in->buffer, in->size, out->buffer, out->size, &bytesReturned, nullptr);
     return DeviceIoControl(devicehandle, code, in->buffer, in->size, out->buffer, out->size, &bytesReturned, nullptr);
 }
 bool SendIOCTLMessage(ULONG code, HANDLE devicehandle) {

@@ -8,6 +8,9 @@ VPN Project
 
 Logs (rants, vents and afterthoughts):
 
+24/01/2026
+- Damn, I fixed alot of things around the redirecting but it is still not redirecting to the correct address (routing issues?)
+- I have to try redirect to an outside server and install wireshark on the vm.
 
 20/01/2026
 - NICE!!! WE ARE REDIRECTING!!! 
