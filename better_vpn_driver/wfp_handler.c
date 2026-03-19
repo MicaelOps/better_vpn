@@ -101,7 +101,7 @@ static VOID NTAPI ClassifyFn(
 				DbgPrint("Packet redirected?! \n");
 				
 				RtlCopyMemory(&connectRequest->remoteAddressAndPort, &currProxyServer, sizeof(SOCKADDR_IN));
-				// Verify what was actually written
+				// Verify what was actually written yes
 				DbgPrint("AFTER COPY: %u.%u.%u.%u:%u\n",
 					sin->sin_addr.S_un.S_un_b.s_b1,
 					sin->sin_addr.S_un.S_un_b.s_b2,

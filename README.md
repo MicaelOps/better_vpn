@@ -8,6 +8,18 @@ VPN Project
 
 Logs (rants, vents and afterthoughts):
 
+19/03/2026
+- god, long time no see
+- I really need a new laptop, running a vm that is not slow hurts my pc so much. 
+- Anyways, after creating a new vm with more space, I was able to install wireshark and setup a simple server to receive the redirected packets. After testing everything, the packets were being redirected! Hooray!
+- Now the final stage of the VPN are here. Which are:
+- How does the vpn server interpret the redirected packets
+- How does the vpn server reply back?
+- I know that I can add context to the connections, hence I will be able to manipulate the connection information.
+- Now I may have to add another layer to filter the send() data to add the extra details for the vpn server
+- And potentially filter the recv() to receive the correct that as the vpn server could be sending multiple packets for different destinations.
+- But overrall, not bad. Tecnically the vpn is done.
+- 
 24/01/2026
 - Damn, I fixed alot of things around the redirecting but it is still not redirecting to the correct address (routing issues?)
 - I have to try redirect to an outside server and install wireshark on the vm.
