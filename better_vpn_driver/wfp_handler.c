@@ -14,10 +14,26 @@
 #define IOCTL_VPS_TOGGLE_ENCRYPTION \
     CTL_CODE(FILE_DEVICE_UNKNOWN, 0x802, METHOD_BUFFERED, FILE_ANY_ACCESS)
 
-const GUID CALLOUT_KEY = { 0x7c334a77,
+
+
+typedef struct _REDIRECTION_CONTEXT {
+	IN_ADDR original_address;
+	USHORT port;
+
+} REDIRECTION_CONTEXT, *PREDIRECTION_CONTEXT;
+
+
+const GUID REDIRECT_CALLOUT_KEY = { 0x7c334a77,
 							0xe480,
 							0x4a87,
 							0x87, 0x7a, 0x0e, 0x7f, 0xc8, 0x14, 0x61, 0xe3};
+
+//9a40acb5-2683-464e-9a96-3c6fc9bbb34a
+
+const GUID STREAM_CALLOUT_KEY = {  0x9a40acb5,
+							0x2683,
+							0x464e,
+							0x9a, 0x96, 0x3c, 0x6f, 0xc9, 0xbb, 0xb3, 0x4a };
 
 const GUID PROVIDER_KEY = {
 	0x3437e444,
@@ -25,11 +41,31 @@ const GUID PROVIDER_KEY = {
 	0x4bdf,
 	0x96, 0xa7, 0x31, 0x83, 0x08, 0x38, 0x29, 0xee };
 
-UINT32 CalloutId = 0;
+RTL_DYNAMIC_HASH_TABLE context_manager;
+
+UINT32 RedirectCalloutId = 0, StreamCalloutId = 0;
+ULONG tagcounter = 230L;
 HANDLE RedirectHandle = NULL;
 BOOL redirecting = TRUE;
 SOCKADDR_STORAGE currProxyServer = { 0 };
 
+
+VOID CleanupHashTable()
+{
+	RTL_DYNAMIC_HASH_TABLE_ENUMERATOR enumerator;
+	RtlInitEnumerationHashTable(&context_manager, &enumerator);
+
+	PRTL_DYNAMIC_HASH_TABLE_ENTRY entry;
+
+	while ((entry = RtlEnumerateEntryHashTable(&context_manager, &enumerator)) != NULL) {
+
+		PREDIRECTION_CONTEXT myEntry = CONTAINING_RECORD(entry, PREDIRECTION_CONTEXT, Link);
+
+		RtlRemoveEntryHashTable(&context_manager, entry);
+
+		ExFreePoolWithTag(myEntry, 'tag1');
+	}
+}
 
 
 // The callback function where the filtering logic is implemented.
@@ -100,7 +136,23 @@ static VOID NTAPI ClassifyFn(
 			if (currProxyServer.ss_family == AF_INET && correct_port != 53 && correct_port != 5353 && correct_port != 138) {
 				DbgPrint("Packet redirected?! \n");
 				
+				
+				// Is there a context already?
+				if (inMetaValues->flowHandle != 0)
+					return; 
+
+				PREDIRECTION_CONTEXT context = ExAllocatePool2(NonPagedPool, sizeof(REDIRECTION_CONTEXT), tagcounter);
+				tagcounter++;
+
+				if (!context) {
+					DbgPrint("Unable to allocate Redirection Context to packet.");
+					return;
+				}
+
 				RtlCopyMemory(&connectRequest->remoteAddressAndPort, &currProxyServer, sizeof(SOCKADDR_IN));
+
+				FwpsFlowAssociateContext(inMetaValues->flowHandle, inFixedValues->layerId, StreamCalloutId, context);
+
 				// Verify what was actually written yes
 				DbgPrint("AFTER COPY: %u.%u.%u.%u:%u\n",
 					sin->sin_addr.S_un.S_un_b.s_b1,
@@ -114,6 +166,10 @@ static VOID NTAPI ClassifyFn(
 			
 			FwpsReleaseClassifyHandle(ClassifyHandle);
 		}
+
+	}
+	else if (inFixedValues->layerId == FWPS_LAYER_STREAM_V4) {
+
 
 	}
 }
@@ -157,12 +213,19 @@ static VOID NTAPI FlowDeleteFn(
 NTSTATUS closeWFP(VOID) {
 	NTSTATUS status = STATUS_SUCCESS;
 	
-	if (CalloutId == 0)
+	if (RedirectCalloutId == 0)
 		return status;
 
 	FwpsRedirectHandleDestroy(RedirectHandle);
 
-	status = FwpsCalloutUnregisterById(CalloutId);
+	status = FwpsCalloutUnregisterById(RedirectCalloutId);
+
+	if (!NT_SUCCESS(status)) {
+		DbgPrint("Unable to unregister VPN Callout. \n");
+		return status;
+	}
+
+	status = FwpsCalloutUnregisterById(StreamCalloutId);
 
 	if (!NT_SUCCESS(status)) {
 		DbgPrint("Unable to unregister VPN Callout. \n");
@@ -178,19 +241,37 @@ NTSTATUS InitWFP(PDEVICE_OBJECT DeviceObject) {
 
 	UNREFERENCED_PARAMETER(DeviceObject);
 
-	FWPS_CALLOUT Callout = {
-			CALLOUT_KEY,
+	RtlCreateHashTable(&context_manager, 20, 0);
+	
+	FWPS_CALLOUT RedirectCallout = {
+			REDIRECT_CALLOUT_KEY,
 			0,
 			ClassifyFn,
 			NotifyFn,
-			FlowDeleteFn};
+			FlowDeleteFn };
+
+	FWPS_CALLOUT StreamCallout = {
+		STREAM_CALLOUT_KEY,
+		0,
+		ClassifyFn,
+		NotifyFn,
+		FlowDeleteFn };
 
 	// Registering the callout.
-	status = FwpsCalloutRegister(DeviceObject, &Callout, &CalloutId);
+	status = FwpsCalloutRegister(DeviceObject, &RedirectCallout, &RedirectCalloutId);
 	
 
 	if (!NT_SUCCESS(status)) {
-		DbgPrint("Unable to load FwpsCalloutRegister, Error: %ld \n", status);
+		DbgPrint("Unable to load FwpsCalloutRegister RedirectCallout, Error: %ld \n", status);
+		goto error;
+	}
+
+	// Registering the callout.
+	status = FwpsCalloutRegister(DeviceObject, &StreamCallout, &StreamCalloutId);
+
+
+	if (!NT_SUCCESS(status)) {
+		DbgPrint("Unable to load FwpsCalloutRegister StreamCallout, Error: %ld \n", status);
 		goto error;
 	}
 
@@ -206,7 +287,8 @@ NTSTATUS InitWFP(PDEVICE_OBJECT DeviceObject) {
 
 error:
 	if (!NT_SUCCESS(status)) {
-		FwpsCalloutUnregisterById(CalloutId);
+		FwpsCalloutUnregisterById(RedirectCalloutId);
+		FwpsCalloutUnregisterById(StreamCalloutId);
 		return status;
 	}
 

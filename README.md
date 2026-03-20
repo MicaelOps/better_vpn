@@ -8,6 +8,12 @@ VPN Project
 
 Logs (rants, vents and afterthoughts):
 
+20/03/2026
+- Doing some work now! Finished setting up the layer to modify the packets before is sent out to the VPN Server.
+- I still have to finish on the drivers side but it should be fine.
+- I am a bit upset that you cant associate the same context between different callouts. Dont they all kinda belong to the same socket handle?
+- Also, so sad that C doesnt have dictionary like in c++. Thank the lord for the RTL windows functions.
+
 19/03/2026
 - god, long time no see
 - I really need a new laptop, running a vm that is not slow hurts my pc so much. 
