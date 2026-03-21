@@ -46,7 +46,7 @@ PRTL_DYNAMIC_HASH_TABLE context_manager;
 
 UINT32 RedirectCalloutId = 0, StreamCalloutId = 0;
 ULONG tagcounter = 230L;
-HANDLE RedirectHandle = NULL;
+HANDLE RedirectHandle = NULL, InjectionHandle = NULL;
 BOOL redirecting = TRUE;
 SOCKADDR_STORAGE currProxyServer = { 0 };
 
@@ -138,16 +138,17 @@ static VOID NTAPI ClassifyFn(
 				DbgPrint("Packet redirected?! \n");
 	
 				PREDIRECTION_CONTEXT context = ExAllocatePool2(NonPagedPool, sizeof(REDIRECTION_CONTEXT), tagcounter);
-				context->port = correct_port;
-				context->original_address = sin->sin_addr;
-				context->tag = tagcounter;
-
-				tagcounter++;
 
 				if (!context) {
 					DbgPrint("Unable to allocate Redirection Context to packet.");
 					return;
 				}
+
+				context->port = correct_port;
+				context->original_address = sin->sin_addr;
+				context->tag = tagcounter;
+
+				tagcounter++;
 
 				RtlCopyMemory(&connectRequest->remoteAddressAndPort, &currProxyServer, sizeof(SOCKADDR_IN));
 
@@ -287,6 +288,12 @@ NTSTATUS InitWFP(PDEVICE_OBJECT DeviceObject) {
 		goto error;
 	}
 
+	status = FwpsInjectionHandleCreate(AF_INET, FWPS_INJECTION_TYPE_STREAM, &InjectionHandle);
+
+	if (!NT_SUCCESS(status)) {
+		DbgPrint("Unable to load FwpsInjectionHandleCreate, Error: %ld \n", status);
+		goto error;
+	}
 
 	status = FwpsRedirectHandleCreate(&PROVIDER_KEY,0,&RedirectHandle);
 
