@@ -171,18 +171,21 @@ static VOID NTAPI ClassifyFn(
 	}
 	else if (inFixedValues->layerId == FWPS_LAYER_STREAM_V4) {
 
-		if (filter->action.type != FWP_ACTION_BLOCK) {
+		if (filter->action.type == FWP_ACTION_BLOCK) 
+			return;
+		
+		FWPS_STREAM_CALLOUT_IO_PACKET* packet = (FWPS_STREAM_CALLOUT_IO_PACKET*)layerData;
+		FWPS_PACKET_INJECTION_STATE state = FwpsQueryPacketInjectionState(InjectionHandle, packet->streamData->netBufferListChain, NULL);
 
-			PRTL_DYNAMIC_HASH_TABLE_ENTRY entry = RtlLookupEntryHashTable(context_manager, inMetaValues->flowHandle, NULL);
+		if (state == FWPS_PACKET_PREVIOUSLY_INJECTED_BY_SELF || state == FWPS_PACKET_INJECTED_BY_SELF)
+			return;
 
-			if (entry) {
+		PRTL_DYNAMIC_HASH_TABLE_ENTRY entry = RtlLookupEntryHashTable(context_manager, inMetaValues->flowHandle, NULL);
 
-				PREDIRECTION_CONTEXT context = CONTAINING_RECORD(entry, REDIRECTION_CONTEXT, structEntry);
+		if (entry) {
 
-				FWPS_STREAM_CALLOUT_IO_PACKET* packet = (FWPS_STREAM_CALLOUT_IO_PACKET*)layerData;
-
-				
-			}
+			PREDIRECTION_CONTEXT context = CONTAINING_RECORD(entry, REDIRECTION_CONTEXT, structEntry);
+			FwpsCloneStreamData(packet->streamData, packet->streamData->netBufferListChain->NdisPoolHandle, packet->streamData->netBufferListChain->NdisPoolHandle, NULL, &packet->streamData->netBufferListChain);
 		}
 	}
 }
@@ -229,6 +232,7 @@ NTSTATUS closeWFP(VOID) {
 	if (RedirectCalloutId == 0)
 		return status;
 
+	FwpsInjectionHandleDestroy(InjectionHandle);
 	FwpsRedirectHandleDestroy(RedirectHandle);
 
 	status = FwpsCalloutUnregisterById(RedirectCalloutId);
