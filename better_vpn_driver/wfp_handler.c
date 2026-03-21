@@ -17,8 +17,9 @@
 
 
 typedef struct _REDIRECTION_CONTEXT {
+	RTL_DYNAMIC_HASH_TABLE_ENTRY structEntry;
 	IN_ADDR original_address;
-	USHORT port;
+	USHORT port, tag;
 
 } REDIRECTION_CONTEXT, *PREDIRECTION_CONTEXT;
 
@@ -41,7 +42,7 @@ const GUID PROVIDER_KEY = {
 	0x4bdf,
 	0x96, 0xa7, 0x31, 0x83, 0x08, 0x38, 0x29, 0xee };
 
-RTL_DYNAMIC_HASH_TABLE context_manager;
+PRTL_DYNAMIC_HASH_TABLE context_manager;
 
 UINT32 RedirectCalloutId = 0, StreamCalloutId = 0;
 ULONG tagcounter = 230L;
@@ -53,17 +54,17 @@ SOCKADDR_STORAGE currProxyServer = { 0 };
 VOID CleanupHashTable()
 {
 	RTL_DYNAMIC_HASH_TABLE_ENUMERATOR enumerator;
-	RtlInitEnumerationHashTable(&context_manager, &enumerator);
+	RtlInitEnumerationHashTable(context_manager, &enumerator);
 
 	PRTL_DYNAMIC_HASH_TABLE_ENTRY entry;
 
-	while ((entry = RtlEnumerateEntryHashTable(&context_manager, &enumerator)) != NULL) {
+	while ((entry = RtlEnumerateEntryHashTable(context_manager, &enumerator)) != NULL) {
 
-		PREDIRECTION_CONTEXT myEntry = CONTAINING_RECORD(entry, PREDIRECTION_CONTEXT, Link);
+		PREDIRECTION_CONTEXT context = CONTAINING_RECORD(entry, REDIRECTION_CONTEXT, structEntry);
 
-		RtlRemoveEntryHashTable(&context_manager, entry);
+		RtlRemoveEntryHashTable(context_manager, entry, NULL);
 
-		ExFreePoolWithTag(myEntry, 'tag1');
+		ExFreePoolWithTag(context, context->tag);
 	}
 }
 
@@ -121,27 +122,26 @@ static VOID NTAPI ClassifyFn(
 
 			// CORRECT ENDIANESS
 			USHORT correct_port = RtlUshortByteSwap(sin->sin_port);
-			DbgPrint(
+			/*DbgPrint(
 				"IP Address %u.%u.%u.%u Port %u\n",
 				(unsigned int)sin->sin_addr.S_un.S_un_b.s_b1,
 				(unsigned int)sin->sin_addr.S_un.S_un_b.s_b2,
 				(unsigned int)sin->sin_addr.S_un.S_un_b.s_b3,
 				(unsigned int)sin->sin_addr.S_un.S_un_b.s_b4,
 				correct_port
-			);
+			);*/
 			
 
 			// Checking if we have a valid proxyServer and we are redirecting
 			// Also checking that we do not change the DNS functionalities
 			if (currProxyServer.ss_family == AF_INET && correct_port != 53 && correct_port != 5353 && correct_port != 138) {
 				DbgPrint("Packet redirected?! \n");
-				
-				
-				// Is there a context already?
-				if (inMetaValues->flowHandle != 0)
-					return; 
-
+	
 				PREDIRECTION_CONTEXT context = ExAllocatePool2(NonPagedPool, sizeof(REDIRECTION_CONTEXT), tagcounter);
+				context->port = correct_port;
+				context->original_address = sin->sin_addr;
+				context->tag = tagcounter;
+
 				tagcounter++;
 
 				if (!context) {
@@ -151,15 +151,15 @@ static VOID NTAPI ClassifyFn(
 
 				RtlCopyMemory(&connectRequest->remoteAddressAndPort, &currProxyServer, sizeof(SOCKADDR_IN));
 
-				FwpsFlowAssociateContext(inMetaValues->flowHandle, inFixedValues->layerId, StreamCalloutId, context);
+				RtlInsertEntryHashTable(context_manager, &context->structEntry, inMetaValues->flowHandle, NULL);
 
 				// Verify what was actually written yes
-				DbgPrint("AFTER COPY: %u.%u.%u.%u:%u\n",
+				/*DbgPrint("AFTER COPY: %u.%u.%u.%u:%u\n",
 					sin->sin_addr.S_un.S_un_b.s_b1,
 					sin->sin_addr.S_un.S_un_b.s_b2,
 					sin->sin_addr.S_un.S_un_b.s_b3,
 					sin->sin_addr.S_un.S_un_b.s_b4,
-					RtlUshortByteSwap(sin->sin_port));
+					RtlUshortByteSwap(sin->sin_port));*/
 			}
 
 			FwpsApplyModifiedLayerData(ClassifyHandle, writableLayerData, 0);
@@ -170,7 +170,19 @@ static VOID NTAPI ClassifyFn(
 	}
 	else if (inFixedValues->layerId == FWPS_LAYER_STREAM_V4) {
 
+		if (filter->action.type != FWP_ACTION_BLOCK) {
 
+			PRTL_DYNAMIC_HASH_TABLE_ENTRY entry = RtlLookupEntryHashTable(context_manager, inMetaValues->flowHandle, NULL);
+
+			if (entry) {
+
+				PREDIRECTION_CONTEXT context = CONTAINING_RECORD(entry, REDIRECTION_CONTEXT, structEntry);
+
+				FWPS_STREAM_CALLOUT_IO_PACKET* packet = (FWPS_STREAM_CALLOUT_IO_PACKET*)layerData;
+
+				
+			}
+		}
 	}
 }
 
