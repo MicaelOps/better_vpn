@@ -8,6 +8,10 @@ VPN Project
 
 Logs (rants, vents and afterthoughts):
 
+21/03/2026
+- Took some steps towards modification of tcp packets 
+- I have no idea how am I going to modify the NET_BUFFER_LIST, it looks hella complicated whenever I look at the docs.
+- I will leave the problem for tomorrow's me
 20/03/2026
 - Doing some work now! Finished setting up the layer to modify the packets before is sent out to the VPN Server.
 - I still have to finish on the drivers side but it should be fine.
@@ -24,8 +28,8 @@ Logs (rants, vents and afterthoughts):
 - I know that I can add context to the connections, hence I will be able to manipulate the connection information.
 - Now I may have to add another layer to filter the send() data to add the extra details for the vpn server
 - And potentially filter the recv() to receive the correct that as the vpn server could be sending multiple packets for different destinations.
-- But overrall, not bad. Tecnically the vpn is done.
-- 
+- But overrall, not bad.
+
 24/01/2026
 - Damn, I fixed alot of things around the redirecting but it is still not redirecting to the correct address (routing issues?)
 - I have to try redirect to an outside server and install wireshark on the vm.

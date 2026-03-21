@@ -69,6 +69,15 @@ VOID CleanupHashTable()
 }
 
 
+void CompleteInjection(
+	 void* context,
+	 NET_BUFFER_LIST* netBufferList,
+	 BOOLEAN dispatchLevel) {
+
+	FwpsFreeCloneNetBufferList(netBufferList, 0);
+}
+
+
 // The callback function where the filtering logic is implemented.
 // Inline Modification Callout
 static VOID NTAPI ClassifyFn(
@@ -175,6 +184,10 @@ static VOID NTAPI ClassifyFn(
 			return;
 		
 		FWPS_STREAM_CALLOUT_IO_PACKET* packet = (FWPS_STREAM_CALLOUT_IO_PACKET*)layerData;
+
+		if (packet->streamData->flags != FWPS_STREAM_FLAG_SEND)
+			return;
+
 		FWPS_PACKET_INJECTION_STATE state = FwpsQueryPacketInjectionState(InjectionHandle, packet->streamData->netBufferListChain, NULL);
 
 		if (state == FWPS_PACKET_PREVIOUSLY_INJECTED_BY_SELF || state == FWPS_PACKET_INJECTED_BY_SELF)
@@ -185,7 +198,25 @@ static VOID NTAPI ClassifyFn(
 		if (entry) {
 
 			PREDIRECTION_CONTEXT context = CONTAINING_RECORD(entry, REDIRECTION_CONTEXT, structEntry);
-			FwpsCloneStreamData(packet->streamData, packet->streamData->netBufferListChain->NdisPoolHandle, packet->streamData->netBufferListChain->NdisPoolHandle, NULL, &packet->streamData->netBufferListChain);
+			PNET_BUFFER_LIST bufferlist;
+
+
+			// clone the packet data before modification
+			FwpsCloneStreamData(packet->streamData, NULL , NULL, NULL, &bufferlist);
+		
+			FwpsStreamInjectAsync0(
+				InjectionHandle,
+				NULL,
+				0,
+				inMetaValues->flowHandle,
+				StreamCalloutId,
+				inFixedValues->layerId,
+				FWPS_STREAM_FLAG_SEND,
+				bufferlist,
+				packet->streamData->dataLength + sizeof(context->original_address) + sizeof(context->port),
+				CompleteInjection,
+				NULL
+			);
 		}
 	}
 }
@@ -249,6 +280,7 @@ NTSTATUS closeWFP(VOID) {
 		return status;
 	}
 
+	CleanupHashTable();
 
 	return STATUS_SUCCESS;
 }
