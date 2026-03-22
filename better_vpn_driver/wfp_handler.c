@@ -15,6 +15,11 @@
     CTL_CODE(FILE_DEVICE_UNKNOWN, 0x802, METHOD_BUFFERED, FILE_ANY_ACCESS)
 
 
+typedef struct {
+	IN_ADDR address;
+	USHORT port;
+} ADDR_PORT;
+
 
 typedef struct _REDIRECTION_CONTEXT {
 	RTL_DYNAMIC_HASH_TABLE_ENTRY structEntry;
@@ -24,14 +29,10 @@ typedef struct _REDIRECTION_CONTEXT {
 } REDIRECTION_CONTEXT, *PREDIRECTION_CONTEXT;
 
 typedef struct {
-	IN_ADDR address;
-	USHORT port;
-} ADDR_PORT;
-
-typedef struct {
 	PVOID buf;
 	PMDL mdl;
 	PNET_BUFFER_LIST nbl;
+	ULONG tag;
 } INJECT_CONTEXT, *PINJECT_CONTEXT;
 
 const ULONG headersize = sizeof(ADDR_PORT);
@@ -80,6 +81,7 @@ VOID CleanupHashTable()
 
 		ExFreePoolWithTag(context, context->tag);
 	}
+	RtlEndEnumerationHashTable(context_manager, &enumerator);
 }
 
 
@@ -88,7 +90,11 @@ void CompleteInjectionHeader(
 	NET_BUFFER_LIST* netBufferList,
 	BOOLEAN dispatchLevel) {
 
-	FwpsFreeCloneNetBufferList(netBufferList, 0);
+	PINJECT_CONTEXT ctx = (PINJECT_CONTEXT) context;
+	IoFreeMdl(ctx->mdl);
+	ExFreePoolWithTag(ctx->buf, (ctx->tag-333333) + 1000); // THIS IS SO STUPID BTW, WHY AM I NOT STORING TAG WITHOUT THE INCREMENTS? BUT I AM TOO LAZY RN!
+	NdisFreeNetBufferList(ctx->nbl);
+	ExFreePoolWithTag(ctx, ctx->tag);
 }
 
 void CompleteInjection(
@@ -259,6 +265,12 @@ static VOID NTAPI ClassifyFn(
 					);
 			/* Inject the new bits first */
 
+			INJECT_CONTEXT* injectCtx = ExAllocatePool2(NonPagedPool, sizeof(INJECT_CONTEXT), tagcounter+333333);
+			injectCtx->buf = buf;
+			injectCtx->mdl = mdl;
+			injectCtx->nbl = header_net_buffer_list;
+			injectCtx->tag = tagcounter + 333333;
+
 			FwpsStreamInjectAsync0(
 				InjectionHandle,
 				NULL,
@@ -269,8 +281,8 @@ static VOID NTAPI ClassifyFn(
 				FWPS_STREAM_FLAG_SEND,
 				header_net_buffer_list,
 				headersize,
-				CompleteInjection,
-				NULL
+				CompleteInjectionHeader,
+				injectCtx
 			);
 
 			/* Injecting the original data */
@@ -377,7 +389,7 @@ NTSTATUS InitWFP(PDEVICE_OBJECT DeviceObject) {
 	params.Header.Size = NDIS_SIZEOF_NET_BUFFER_LIST_POOL_PARAMETERS_REVISION_1;
 	params.fAllocateNetBuffer = TRUE;
 	params.PoolTag = 'iool';
-	params.DataSize = headersize;
+	params.DataSize = 0;
 
 
 	ndisPool = NdisAllocateNetBufferListPool(NULL, &params);
@@ -388,7 +400,7 @@ NTSTATUS InitWFP(PDEVICE_OBJECT DeviceObject) {
 		goto error;
 	}
 
-	RtlCreateHashTable(&context_manager, 20, 0);
+	RtlCreateHashTable(&context_manager, 4, 0);
 	
 	FWPS_CALLOUT RedirectCallout = {
 			REDIRECT_CALLOUT_KEY,
