@@ -8,6 +8,12 @@ VPN Project
 
 Logs (rants, vents and afterthoughts):
 
+22/03/2026
+- Omg, I might have overthought. After reading the docs again and again, it kinda clicked on what to do.
+- Even though I am happy with the progress, I haven't tested anything yet. Therefore, the hardest part hasn't even been crossed
+- The recv() part is gonna be interesting because it is part of the better_vpn_server but I dont think I have to do much because the socket is linked to the server and not the original address hence I don't actually need to do anything.
+- Only the send() is a little bit complex because I have to add the vpn header of "this is the original address and port".
+
 21/03/2026
 - Took some steps towards modification of tcp packets 
 - I have no idea how am I going to modify the NET_BUFFER_LIST, it looks hella complicated whenever I look at the docs.

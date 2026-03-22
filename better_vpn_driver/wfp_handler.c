@@ -18,11 +18,23 @@
 
 typedef struct _REDIRECTION_CONTEXT {
 	RTL_DYNAMIC_HASH_TABLE_ENTRY structEntry;
-	IN_ADDR original_address;
-	USHORT port, tag;
+	ADDR_PORT original_address;
+	USHORT tag;
 
 } REDIRECTION_CONTEXT, *PREDIRECTION_CONTEXT;
 
+typedef struct {
+	IN_ADDR address;
+	USHORT port;
+} ADDR_PORT;
+
+typedef struct {
+	PVOID buf;
+	PMDL mdl;
+	PNET_BUFFER_LIST nbl;
+} INJECT_CONTEXT, *PINJECT_CONTEXT;
+
+const ULONG headersize = sizeof(ADDR_PORT);
 
 const GUID REDIRECT_CALLOUT_KEY = { 0x7c334a77,
 							0xe480,
@@ -44,9 +56,11 @@ const GUID PROVIDER_KEY = {
 
 PRTL_DYNAMIC_HASH_TABLE context_manager;
 
+NDIS_HANDLE ndisPool = NULL;
+HANDLE RedirectHandle = NULL, InjectionHandle = NULL;
+
 UINT32 RedirectCalloutId = 0, StreamCalloutId = 0;
 ULONG tagcounter = 230L;
-HANDLE RedirectHandle = NULL, InjectionHandle = NULL;
 BOOL redirecting = TRUE;
 SOCKADDR_STORAGE currProxyServer = { 0 };
 
@@ -68,6 +82,14 @@ VOID CleanupHashTable()
 	}
 }
 
+
+void CompleteInjectionHeader(
+	void* context,
+	NET_BUFFER_LIST* netBufferList,
+	BOOLEAN dispatchLevel) {
+
+	FwpsFreeCloneNetBufferList(netBufferList, 0);
+}
 
 void CompleteInjection(
 	 void* context,
@@ -153,8 +175,8 @@ static VOID NTAPI ClassifyFn(
 					return;
 				}
 
-				context->port = correct_port;
-				context->original_address = sin->sin_addr;
+				ADDR_PORT addr = { sin->sin_addr, correct_port };
+				context->original_address = addr;
 				context->tag = tagcounter;
 
 				tagcounter++;
@@ -196,14 +218,73 @@ static VOID NTAPI ClassifyFn(
 		PRTL_DYNAMIC_HASH_TABLE_ENTRY entry = RtlLookupEntryHashTable(context_manager, inMetaValues->flowHandle, NULL);
 
 		if (entry) {
+			
+			// To prepend our header [ original_address + port ] we need to inject first our bits and then send the original data back.
 
 			PREDIRECTION_CONTEXT context = CONTAINING_RECORD(entry, REDIRECTION_CONTEXT, structEntry);
+						classifyOut->actionType = FWP_ACTION_BLOCK;
+			packet->countBytesEnforced = packet->streamData->dataLength;
+
+
+			// really bad tagcounter but i cba at this point, user project
+			PVOID buf = ExAllocatePool2(NonPagedPool, headersize, tagcounter+1000);
+
+			if (!buf)
+				return;
+
+			RtlCopyMemory(buf, &context->original_address, headersize);
+
+			PMDL mdl = IoAllocateMdl(buf, headersize, FALSE, FALSE, NULL);
+
+			if (!mdl) {
+				DbgPrint("Unable to allocate mdl \n");
+				return;
+			}
+
+			MmBuildMdlForNonPagedPool(mdl);
+
+
+			classifyOut->actionType = FWP_ACTION_BLOCK;
+			packet->countBytesEnforced = packet->streamData->dataLength;
+
+
+			PNET_BUFFER_LIST header_net_buffer_list =
+				NdisAllocateNetBufferAndNetBufferList(
+					ndisPool,
+					0,
+					0,
+					mdl,
+					0,
+					headersize
+					);
+			/* Inject the new bits first */
+
+			FwpsStreamInjectAsync0(
+				InjectionHandle,
+				NULL,
+				0,
+				inMetaValues->flowHandle,
+				StreamCalloutId,
+				inFixedValues->layerId,
+				FWPS_STREAM_FLAG_SEND,
+				header_net_buffer_list,
+				headersize,
+				CompleteInjection,
+				NULL
+			);
+
+			/* Injecting the original data */
+
+
 			PNET_BUFFER_LIST bufferlist;
 
+			NTSTATUS status = FwpsCloneStreamData(packet->streamData, NULL, NULL, NULL, &bufferlist);
 
-			// clone the packet data before modification
-			FwpsCloneStreamData(packet->streamData, NULL , NULL, NULL, &bufferlist);
-		
+			if (!NT_SUCCESS(status)) {
+				DbgPrint("Unable to clone stream data %ld \n", status);
+				return;
+			}
+
 			FwpsStreamInjectAsync0(
 				InjectionHandle,
 				NULL,
@@ -213,9 +294,9 @@ static VOID NTAPI ClassifyFn(
 				inFixedValues->layerId,
 				FWPS_STREAM_FLAG_SEND,
 				bufferlist,
-				packet->streamData->dataLength + sizeof(context->original_address) + sizeof(context->port),
+				packet->streamData->dataLength,
 				CompleteInjection,
-				NULL
+				context
 			);
 		}
 	}
@@ -289,6 +370,23 @@ NTSTATUS InitWFP(PDEVICE_OBJECT DeviceObject) {
 	NTSTATUS status = STATUS_SUCCESS;
 
 	UNREFERENCED_PARAMETER(DeviceObject);
+
+	NET_BUFFER_LIST_POOL_PARAMETERS params = { 0 };
+	params.Header.Type = NDIS_OBJECT_TYPE_DEFAULT;
+	params.Header.Revision = NET_BUFFER_LIST_POOL_PARAMETERS_REVISION_1;
+	params.Header.Size = NDIS_SIZEOF_NET_BUFFER_LIST_POOL_PARAMETERS_REVISION_1;
+	params.fAllocateNetBuffer = TRUE;
+	params.PoolTag = 'iool';
+	params.DataSize = headersize;
+
+
+	ndisPool = NdisAllocateNetBufferListPool(NULL, &params);
+
+	if (ndisPool == NULL) {
+		status = STATUS_INSUFFICIENT_RESOURCES;
+		DbgPrint("Unable to allocate NdisAllocateNetBufferListPool \n");
+		goto error;
+	}
 
 	RtlCreateHashTable(&context_manager, 20, 0);
 	
