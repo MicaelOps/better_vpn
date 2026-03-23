@@ -8,13 +8,8 @@ UNICODE_STRING DosDeviceName, DeviceName;
 
 // IRP_MJ_CREATE && IRP_MJ_CLOSE Handler Function
 static NTSTATUS HandleInitialVPNCommunication(PDEVICE_OBJECT DeviceObject, PIRP irp) {
-
 	NT_ASSERT(DeviceObject);
 	NT_ASSERT(irp);
-
-	PIO_STACK_LOCATION irpStack = IoGetCurrentIrpStackLocation(irp);
-
-	DbgPrint("IRP IO Control Code: %ld \n", irpStack->Parameters.DeviceIoControl.IoControlCode);
 
 	irp->IoStatus.Status = STATUS_SUCCESS;
 	irp->IoStatus.Information = 0;
@@ -54,14 +49,6 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath) 
 		return status;
 	}
 
-	status = InitWFP(VPNDeviceObject);
-
-	if (!NT_SUCCESS(status)) {
-		DbgPrint("Unable to load InitWFP \n");
-		DbgPrint("Error code: %ld", status);
-		IoDeleteDevice(VPNDeviceObject);
-		return status;
-	}
 
 	status = IoCreateSymbolicLink(&DosDeviceName, &DeviceName);
 
@@ -75,6 +62,16 @@ NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath) 
 	DriverObject->MajorFunction[IRP_MJ_CREATE] = HandleInitialVPNCommunication;
 	DriverObject->MajorFunction[IRP_MJ_CLOSE] = HandleInitialVPNCommunication;
 	DriverObject->MajorFunction[IRP_MJ_DEVICE_CONTROL] = HandleVPNControlCommunication;
+
+
+	status = InitWFP(VPNDeviceObject);
+
+	if (!NT_SUCCESS(status)) {
+		DbgPrint("Unable to load InitWFP \n");
+		DbgPrint("Error code: %ld", status);
+		IoDeleteDevice(VPNDeviceObject);
+		return status;
+	}
 
 	DbgPrint("Driver has been successfully loaded.\n");
 

@@ -49,19 +49,28 @@ int main(int argc, char* argv[])
         return -1;
     }
 
+    std::string command;
+    ULONG code = 0;
+    WSADATA wsaData;
+    int result = 0;
+    SERVICE_STATUS serviceStatus = { 0 };
+    HANDLE deviceHandle = INVALID_HANDLE_VALUE;
+    SC_HANDLE schandle = NULL;
+    SC_HANDLE vpn_service_handle = NULL;
+
     std::cout << "Loading VPN service... \n";
     int cleanuplevel = 0;
 
     // First checking if the kernel is loaded by using the Service Manager.
 
-    SC_HANDLE schandle = OpenSCManager(NULL, NULL, SC_MANAGER_CREATE_SERVICE | SC_MANAGER_CONNECT | SC_MANAGER_ENUMERATE_SERVICE);
+    schandle = OpenSCManager(NULL, NULL, SC_MANAGER_CREATE_SERVICE | SC_MANAGER_CONNECT | SC_MANAGER_ENUMERATE_SERVICE);
 
     if (schandle == NULL) {
         std::cout << "Unable to open SC Manager. Error Code: " << GetLastError() << "\n";
         return -1;
     }
 
-    SC_HANDLE vpn_service_handle = OpenService(schandle,
+    vpn_service_handle = OpenService(schandle,
         L"BetterVPN",
         SERVICE_START | SERVICE_STOP | SERVICE_QUERY_STATUS | SERVICE_PAUSE_CONTINUE);
 
@@ -96,12 +105,21 @@ int main(int argc, char* argv[])
                 NULL,
                 NULL);
 
-            // The installation of the service failed.
             if (vpn_service_handle == NULL) {
                 CloseServiceHandle(schandle);
                 std::cout << "Unable to install Service Error Code:" << GetLastError() << "\n";
                 return -1;
             }
+
+            std::cout << "Starting newly installed service...\n";
+            if (!StartService(vpn_service_handle, 0, nullptr)) {
+                std::cout << "Unable to start service. Error Code: " << GetLastError() << "\n";
+                CloseServiceHandle(vpn_service_handle);
+                CloseServiceHandle(schandle);
+                return -1;
+            }
+
+            Sleep(2000);
         }
 
         else { // error is not due to service not being nonexistent
@@ -114,7 +132,7 @@ int main(int argc, char* argv[])
     }
     else { // OpenService succeded getting the handle.
 
-        SERVICE_STATUS serviceStatus;
+
         if (!QueryServiceStatus(vpn_service_handle, &serviceStatus)) {
             std::cout << "Unable to query VPN Service status. Error Code:" << GetLastError() << "\n";
             CloseServiceHandle(vpn_service_handle);
@@ -166,7 +184,7 @@ int main(int argc, char* argv[])
     }
 
     std::cout << "Handle obtained.. Attempting communcication... \n";
-    HANDLE deviceHandle = CreateFile(
+    deviceHandle = CreateFile(
         L"\\\\.\\BetterVPN",
         GENERIC_READ | GENERIC_WRITE,
         FILE_SHARE_READ | FILE_SHARE_WRITE,
@@ -179,8 +197,6 @@ int main(int argc, char* argv[])
     if (deviceHandle == INVALID_HANDLE_VALUE) {
         std::cout << "Unable to communicate with VPN Driver. Error Code: " << GetLastError() << "\n";
 
-        SERVICE_STATUS serviceStatus;
-
         bool success = ControlService(vpn_service_handle, SERVICE_CONTROL_STOP, &serviceStatus);
 
         if (success && serviceStatus.dwCurrentState == SERVICE_STOP_PENDING) 
@@ -191,15 +207,13 @@ int main(int argc, char* argv[])
         CloseServiceHandle(schandle);
         return -1;
     }
+    std::cout << "Communication was successful \n";
 
-    std::string command;
-    ULONG code = 0;
-    WSADATA wsaData;
-    int result;
 
-    EXIT_ON_ERROR(SetupWFP(), result, "SetupWFP");
-    
     EXIT_ON_ERROR(WSAStartup(MAKEWORD(2, 2), &wsaData), result, "WSAStartup"); // Just used for obtaining the proxy server's sockaddr
+    
+    std::cout << " Setting up network capabilities.. \n";
+    EXIT_ON_ERROR(SetupWFP(), result, "SetupWFP");
 
     EXIT_ON_ERROR_LAST(SendInitialProxyServerInfo(argv[1], argv[2], deviceHandle), "SendInitialProxyServerInfo");
 
@@ -246,7 +260,6 @@ cleanup:
     CloseHandle(deviceHandle);
 
     // Closing the VPN Service before closing the handles
-    SERVICE_STATUS serviceStatus;
     ControlService(vpn_service_handle, SERVICE_CONTROL_STOP, &serviceStatus);
 
     std::cout << "Closing VPN Service Handle... \n";

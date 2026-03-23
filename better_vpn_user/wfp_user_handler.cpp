@@ -34,7 +34,7 @@ DWORD SetupWFP() {
     wchar_t streamcallout[] = L"v4 bettervpn stream filter";
     wchar_t v4filtername[] = L"v4 bettervpn filter";
 
-    FWPM_CALLOUT redirect_callout, stream_callout;
+    FWPM_CALLOUT redirect_callout{ 0 }, stream_callout{ 0 };
 
     redirect_callout.displayData.name = v4filtername;
     redirect_callout.displayData.description = v4filtername;
@@ -51,23 +51,16 @@ DWORD SetupWFP() {
 
     // one filter is responsible for redirecting IPv4 IPv6 connections to the VPN Server
     // Other filter is responsible for getting the clone the packet data and inject a new packet with encrypted data to the stream
-    FWPM_FILTER redirectFilterv4, streamDatav4, *lookup_filter, *stream_filter_lookup;
-
+    FWPM_FILTER redirectFilterv4 {0}, streamDatav4 {0}, * lookup_filter = nullptr, * stream_filter_lookup = nullptr;
     EXIT_ON_ERROR(FwpmEngineOpen(NULL, RPC_C_AUTHN_DEFAULT, NULL, NULL, &handle), success, "EngineOpen");
     EXIT_ON_ERROR(FwpmTransactionBegin(handle, 0), success, "TransactionBegin");
-
     success = FwpmCalloutAdd(handle, &redirect_callout, NULL, &RedirectCalloutID);
-
-    EXIT_ON_ERROR_CUSTOM(success != FWP_E_ALREADY_EXISTS && success == ERROR_SUCCESS, "FwpmCalloutAdd Redirect");
-
+    EXIT_ON_ERROR_CUSTOM(success != FWP_E_ALREADY_EXISTS && success != ERROR_SUCCESS, "FwpmCalloutAdd Redirect");
     success = FwpmCalloutAdd(handle, &stream_callout, NULL, &StreamCalloutID);
-
-    EXIT_ON_ERROR_CUSTOM(success != FWP_E_ALREADY_EXISTS && success == ERROR_SUCCESS, "FwpmCalloutAdd Stream");
-
+    EXIT_ON_ERROR_CUSTOM(success != FWP_E_ALREADY_EXISTS && success != ERROR_SUCCESS, "FwpmCalloutAdd Stream");
 
     RtlZeroMemory(&redirectFilterv4, sizeof(FWPM_FILTER));
     RtlZeroMemory(&streamDatav4, sizeof(FWPM_FILTER));
-
     success = FwpmFilterGetByKey(handle, &LAYER_REDIRECT_V4_KEY, &lookup_filter);
 
     // Filter does not exist
@@ -84,11 +77,12 @@ DWORD SetupWFP() {
     else if (success != ERROR_SUCCESS) { // Error at the method
         std::cout << "Failed Operation detected at FwpmFilterGetByKey Error Code: " << success << "\n";
         goto cleanup;
-    }
+    } 
+    else
+        FwpmFreeMemory((void**)&lookup_filter);
 
-    FwpmFreeMemory((void**) &lookup_filter);
 
-
+    std::cout << " S8 \n";
 
     success = FwpmFilterGetByKey(handle, &LAYER_STREAM_V4_KEY, &stream_filter_lookup);
 
@@ -106,11 +100,11 @@ DWORD SetupWFP() {
     else if (success != ERROR_SUCCESS) { // Error at the method
         std::cout << "Failed Operation detected at FwpmFilterGetByKey streamDatav4 Error Code: " << success << "\n";
         goto cleanup;
-    }
+    } 
+    else
+        FwpmFreeMemory((void**)&stream_filter_lookup);
 
-    FwpmFreeMemory((void**)&stream_filter_lookup);
-
-
+    std::cout << " S9 \n";
     EXIT_ON_ERROR(FwpmTransactionCommit(handle), success, "TransactionCommit");
 
 cleanup:

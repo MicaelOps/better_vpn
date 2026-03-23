@@ -8,6 +8,10 @@ VPN Project
 
 Logs (rants, vents and afterthoughts):
 
+23/03/2026
+- Undergoing tests, for some reason ExAllocatePool2 is failing.
+- I wish I could write more for this log but I am so sleep and its only 6pm.
+
 22/03/2026
 - Omg, I might have overthought. After reading the docs again and again, it kinda clicked on what to do.
 - Even though I am happy with the progress, I haven't tested anything yet. Therefore, the hardest part hasn't even been crossed

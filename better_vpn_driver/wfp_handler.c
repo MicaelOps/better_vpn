@@ -24,7 +24,7 @@ typedef struct {
 typedef struct _REDIRECTION_CONTEXT {
 	RTL_DYNAMIC_HASH_TABLE_ENTRY structEntry;
 	ADDR_PORT original_address;
-	USHORT tag;
+	ULONG tag;
 
 } REDIRECTION_CONTEXT, *PREDIRECTION_CONTEXT;
 
@@ -78,10 +78,10 @@ VOID CleanupHashTable()
 		PREDIRECTION_CONTEXT context = CONTAINING_RECORD(entry, REDIRECTION_CONTEXT, structEntry);
 
 		RtlRemoveEntryHashTable(context_manager, entry, NULL);
-
 		ExFreePoolWithTag(context, context->tag);
 	}
 	RtlEndEnumerationHashTable(context_manager, &enumerator);
+	RtlDeleteHashTable(context_manager);
 }
 
 
@@ -89,6 +89,10 @@ void CompleteInjectionHeader(
 	void* context,
 	NET_BUFFER_LIST* netBufferList,
 	BOOLEAN dispatchLevel) {
+
+	UNREFERENCED_PARAMETER(context);
+	UNREFERENCED_PARAMETER(netBufferList);
+	UNREFERENCED_PARAMETER(dispatchLevel);
 
 	PINJECT_CONTEXT ctx = (PINJECT_CONTEXT) context;
 	IoFreeMdl(ctx->mdl);
@@ -101,6 +105,10 @@ void CompleteInjection(
 	 void* context,
 	 NET_BUFFER_LIST* netBufferList,
 	 BOOLEAN dispatchLevel) {
+
+	UNREFERENCED_PARAMETER(context);
+	UNREFERENCED_PARAMETER(netBufferList);
+	UNREFERENCED_PARAMETER(dispatchLevel);
 
 	FwpsFreeCloneNetBufferList(netBufferList, 0);
 }
@@ -171,19 +179,20 @@ static VOID NTAPI ClassifyFn(
 
 			// Checking if we have a valid proxyServer and we are redirecting
 			// Also checking that we do not change the DNS functionalities
-			if (currProxyServer.ss_family == AF_INET && correct_port != 53 && correct_port != 5353 && correct_port != 138) {
+			if (currProxyServer.ss_family == AF_INET && ( correct_port == 443 || correct_port == 80) ) {
 				DbgPrint("Packet redirected?! \n");
-	
-				PREDIRECTION_CONTEXT context = ExAllocatePool2(NonPagedPool, sizeof(REDIRECTION_CONTEXT), tagcounter);
+				DbgPrint("IRQL at allocation: %d\n", KeGetCurrentIrql());
+				PREDIRECTION_CONTEXT context = ExAllocatePool2(NonPagedPool, sizeof(REDIRECTION_CONTEXT), 'xCta');
 
 				if (!context) {
 					DbgPrint("Unable to allocate Redirection Context to packet.");
+					FwpsReleaseClassifyHandle(ClassifyHandle);
 					return;
 				}
-
+				DbgPrint("Redirection Context Alocated succesfully ");
 				ADDR_PORT addr = { sin->sin_addr, correct_port };
 				context->original_address = addr;
-				context->tag = tagcounter;
+				context->tag = 'xCta';
 
 				tagcounter++;
 
@@ -224,29 +233,32 @@ static VOID NTAPI ClassifyFn(
 		PRTL_DYNAMIC_HASH_TABLE_ENTRY entry = RtlLookupEntryHashTable(context_manager, inMetaValues->flowHandle, NULL);
 
 		if (entry) {
-			
+
 			// To prepend our header [ original_address + port ] we need to inject first our bits and then send the original data back.
 
 			PREDIRECTION_CONTEXT context = CONTAINING_RECORD(entry, REDIRECTION_CONTEXT, structEntry);
-						classifyOut->actionType = FWP_ACTION_BLOCK;
+			PNET_BUFFER_LIST header_net_buffer_list = NULL;
+			NTSTATUS status = ERROR_SEVERITY_SUCCESS;
+			classifyOut->actionType = FWP_ACTION_BLOCK;
 			packet->countBytesEnforced = packet->streamData->dataLength;
 
 
 			// really bad tagcounter but i cba at this point, user project
-			PVOID buf = ExAllocatePool2(NonPagedPool, headersize, tagcounter+1000);
+			PVOID buf = ExAllocatePool2(NonPagedPool, headersize, 'fuBa');
 
-			if (!buf)
+			if (!buf) {
+				DbgPrint("Unable to allocate buff for injection \n");
 				return;
+			}
 
 			RtlCopyMemory(buf, &context->original_address, headersize);
 
 			PMDL mdl = IoAllocateMdl(buf, headersize, FALSE, FALSE, NULL);
 
 			if (!mdl) {
-				DbgPrint("Unable to allocate mdl \n");
-				return;
+				DbgPrint("Injection done incorrectly at mdl \n");
+				goto error;
 			}
-
 			MmBuildMdlForNonPagedPool(mdl);
 
 
@@ -254,7 +266,7 @@ static VOID NTAPI ClassifyFn(
 			packet->countBytesEnforced = packet->streamData->dataLength;
 
 
-			PNET_BUFFER_LIST header_net_buffer_list =
+			header_net_buffer_list =
 				NdisAllocateNetBufferAndNetBufferList(
 					ndisPool,
 					0,
@@ -262,16 +274,28 @@ static VOID NTAPI ClassifyFn(
 					mdl,
 					0,
 					headersize
-					);
-			/* Inject the new bits first */
+				);
 
-			INJECT_CONTEXT* injectCtx = ExAllocatePool2(NonPagedPool, sizeof(INJECT_CONTEXT), tagcounter+333333);
+			if (!header_net_buffer_list) {
+				DbgPrint("Injection done incorrectly at NdisAllocateNetBufferAndNetBufferList \n");
+				goto error;
+			}
+
+			/* Inject the new bits first */
+			INJECT_CONTEXT* injectCtx = ExAllocatePool2(NonPagedPool, sizeof(INJECT_CONTEXT), 'fyba');
+
+
+			if (!injectCtx) {
+				DbgPrint("Injection done incorrectly at injectCtx ExAllocatePool2 \n");
+				goto error;
+			}
+
 			injectCtx->buf = buf;
 			injectCtx->mdl = mdl;
 			injectCtx->nbl = header_net_buffer_list;
-			injectCtx->tag = tagcounter + 333333;
+			injectCtx->tag = 'fyba';
 
-			FwpsStreamInjectAsync0(
+			status = FwpsStreamInjectAsync0(
 				InjectionHandle,
 				NULL,
 				0,
@@ -285,19 +309,26 @@ static VOID NTAPI ClassifyFn(
 				injectCtx
 			);
 
+
+			if (!NT_SUCCESS(status)) {
+				DbgPrint("Injection done incorrectly at FwpsStreamInjectAsync0 1. \n");
+				goto error;
+			}
 			/* Injecting the original data */
 
 
 			PNET_BUFFER_LIST bufferlist;
 
-			NTSTATUS status = FwpsCloneStreamData(packet->streamData, NULL, NULL, NULL, &bufferlist);
+			status = FwpsCloneStreamData0(packet->streamData, NULL, NULL, 0, &bufferlist);
 
+			// SIGH I WILL DO THE MACRO LATER !
 			if (!NT_SUCCESS(status)) {
-				DbgPrint("Unable to clone stream data %ld \n", status);
-				return;
+				DbgPrint("Injection done incorrectly at FwpsCloneStreamData. \n");
+				goto error;
 			}
+			
 
-			FwpsStreamInjectAsync0(
+			status = FwpsStreamInjectAsync(
 				InjectionHandle,
 				NULL,
 				0,
@@ -310,6 +341,24 @@ static VOID NTAPI ClassifyFn(
 				CompleteInjection,
 				context
 			);
+
+		error:
+
+			if (!NT_SUCCESS(status)) {
+
+				if(mdl)
+					IoFreeMdl(mdl);
+
+				ExFreePoolWithTag(buf, 'fyba');
+
+				if(header_net_buffer_list)
+					NdisFreeNetBufferList(header_net_buffer_list);
+
+				DbgPrint("Unable to clone stream data %ld \n", status);
+				return;
+			}
+			DbgPrint("Injection done successfully. \n");
+
 		}
 	}
 }
@@ -375,6 +424,9 @@ NTSTATUS closeWFP(VOID) {
 
 	CleanupHashTable();
 
+	if (ndisPool)
+		NdisFreeNetBufferListPool(ndisPool);
+
 	return STATUS_SUCCESS;
 }
 
@@ -391,6 +443,7 @@ NTSTATUS InitWFP(PDEVICE_OBJECT DeviceObject) {
 	params.PoolTag = 'iool';
 	params.DataSize = 0;
 
+	DbgPrint("Header size %ld \n", headersize);
 
 	ndisPool = NdisAllocateNetBufferListPool(NULL, &params);
 
@@ -469,7 +522,7 @@ NTSTATUS HandleVPNControlCommunication(PDEVICE_OBJECT DeviceObject, PIRP irp) {
 	PIO_STACK_LOCATION irpStack = IoGetCurrentIrpStackLocation(irp);
 
 
-	DbgPrint("IRP IO Control Code: %ld \n", irpStack->Parameters.DeviceIoControl.IoControlCode);
+	DbgPrint("WFP IRP IO Control Code: %ld \n", irpStack->Parameters.DeviceIoControl.IoControlCode);
 
 	switch (irpStack->Parameters.DeviceIoControl.IoControlCode) {
 	case IOCTL_VPS_SERVER_ADDRESS_CHANGE:
@@ -512,6 +565,9 @@ NTSTATUS HandleVPNControlCommunication(PDEVICE_OBJECT DeviceObject, PIRP irp) {
 		IoCompleteRequest(irp, IO_NO_INCREMENT);
 		break;
 	default:
+		irp->IoStatus.Status = STATUS_SUCCESS;
+		irp->IoStatus.Information = 0;
+		IoCompleteRequest(irp, IO_NO_INCREMENT);
 		break;
 	}
 	return STATUS_SUCCESS;
