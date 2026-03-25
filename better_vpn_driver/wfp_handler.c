@@ -61,7 +61,6 @@ NDIS_HANDLE ndisPool = NULL;
 HANDLE RedirectHandle = NULL, InjectionHandle = NULL;
 
 UINT32 RedirectCalloutId = 0, StreamCalloutId = 0;
-ULONG tagcounter = 230L;
 BOOL redirecting = TRUE;
 SOCKADDR_STORAGE currProxyServer = { 0 };
 
@@ -180,21 +179,22 @@ static VOID NTAPI ClassifyFn(
 			// Checking if we have a valid proxyServer and we are redirecting
 			// Also checking that we do not change the DNS functionalities
 			if (currProxyServer.ss_family == AF_INET && ( correct_port == 443 || correct_port == 80) ) {
-				DbgPrint("Packet redirected?! \n");
-				DbgPrint("IRQL at allocation: %d\n", KeGetCurrentIrql());
-				PREDIRECTION_CONTEXT context = ExAllocatePool2(NonPagedPool, sizeof(REDIRECTION_CONTEXT), 'xCta');
+
+				PREDIRECTION_CONTEXT context = ExAllocatePool2(POOL_FLAG_NON_PAGED, sizeof(REDIRECTION_CONTEXT), 'acaL');
+				DbgPrint("IRQL at alloc: %d, context_manager: %p\n", KeGetCurrentIrql(), context_manager);
 
 				if (!context) {
 					DbgPrint("Unable to allocate Redirection Context to packet.");
+					FwpsApplyModifiedLayerData(ClassifyHandle, writableLayerData, 0);
 					FwpsReleaseClassifyHandle(ClassifyHandle);
 					return;
 				}
+
 				DbgPrint("Redirection Context Alocated succesfully ");
 				ADDR_PORT addr = { sin->sin_addr, correct_port };
 				context->original_address = addr;
-				context->tag = 'xCta';
+				context->tag = 'laca';
 
-				tagcounter++;
 
 				RtlCopyMemory(&connectRequest->remoteAddressAndPort, &currProxyServer, sizeof(SOCKADDR_IN));
 
@@ -238,13 +238,14 @@ static VOID NTAPI ClassifyFn(
 
 			PREDIRECTION_CONTEXT context = CONTAINING_RECORD(entry, REDIRECTION_CONTEXT, structEntry);
 			PNET_BUFFER_LIST header_net_buffer_list = NULL;
+			PINJECT_CONTEXT injectCtx = NULL;
 			NTSTATUS status = ERROR_SEVERITY_SUCCESS;
 			classifyOut->actionType = FWP_ACTION_BLOCK;
 			packet->countBytesEnforced = packet->streamData->dataLength;
 
 
 			// really bad tagcounter but i cba at this point, user project
-			PVOID buf = ExAllocatePool2(NonPagedPool, headersize, 'fuBa');
+			PVOID buf = ExAllocatePool2(NonPagedPoolNx, headersize, 'fuBa');
 
 			if (!buf) {
 				DbgPrint("Unable to allocate buff for injection \n");
@@ -282,7 +283,7 @@ static VOID NTAPI ClassifyFn(
 			}
 
 			/* Inject the new bits first */
-			INJECT_CONTEXT* injectCtx = ExAllocatePool2(NonPagedPool, sizeof(INJECT_CONTEXT), 'fyba');
+			injectCtx = ExAllocatePool2(NonPagedPoolNx, sizeof(INJECT_CONTEXT), 'fyba');
 
 
 			if (!injectCtx) {
@@ -342,6 +343,7 @@ static VOID NTAPI ClassifyFn(
 				context
 			);
 
+
 		error:
 
 			if (!NT_SUCCESS(status)) {
@@ -349,7 +351,11 @@ static VOID NTAPI ClassifyFn(
 				if(mdl)
 					IoFreeMdl(mdl);
 
-				ExFreePoolWithTag(buf, 'fyba');
+				if(buf)
+					ExFreePoolWithTag(buf, 'fuBa');
+
+				if(injectCtx)
+					ExFreePoolWithTag(injectCtx, 'fyba');
 
 				if(header_net_buffer_list)
 					NdisFreeNetBufferList(header_net_buffer_list);
@@ -357,6 +363,7 @@ static VOID NTAPI ClassifyFn(
 				DbgPrint("Unable to clone stream data %ld \n", status);
 				return;
 			}
+
 			DbgPrint("Injection done successfully. \n");
 
 		}
@@ -405,9 +412,6 @@ NTSTATUS closeWFP(VOID) {
 	if (RedirectCalloutId == 0)
 		return status;
 
-	FwpsInjectionHandleDestroy(InjectionHandle);
-	FwpsRedirectHandleDestroy(RedirectHandle);
-
 	status = FwpsCalloutUnregisterById(RedirectCalloutId);
 
 	if (!NT_SUCCESS(status)) {
@@ -421,6 +425,11 @@ NTSTATUS closeWFP(VOID) {
 		DbgPrint("Unable to unregister VPN Callout. \n");
 		return status;
 	}
+
+	FwpsInjectionHandleDestroy(InjectionHandle);
+	FwpsRedirectHandleDestroy(RedirectHandle);
+
+
 
 	CleanupHashTable();
 
@@ -454,6 +463,7 @@ NTSTATUS InitWFP(PDEVICE_OBJECT DeviceObject) {
 	}
 
 	RtlCreateHashTable(&context_manager, 4, 0);
+	DbgPrint("Size: %zu\n", sizeof(REDIRECTION_CONTEXT));
 	
 	FWPS_CALLOUT RedirectCallout = {
 			REDIRECT_CALLOUT_KEY,

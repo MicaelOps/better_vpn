@@ -29,8 +29,10 @@ void DriverUnload(PDRIVER_OBJECT DriverObject) {
 }
 
 
+
 NTSTATUS DriverEntry(PDRIVER_OBJECT DriverObject, PUNICODE_STRING RegistryPath) {
 	UNREFERENCED_PARAMETER(RegistryPath);
+
 
 	NTSTATUS status = STATUS_SUCCESS;
 

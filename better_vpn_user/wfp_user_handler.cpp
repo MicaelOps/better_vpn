@@ -107,16 +107,11 @@ DWORD SetupWFP() {
     std::cout << " S9 \n";
     EXIT_ON_ERROR(FwpmTransactionCommit(handle), success, "TransactionCommit");
 
+    return ERROR_SUCCESS;
+
 cleanup:
-    if (success != ERROR_SUCCESS) {
-        FwpmCalloutDeleteByKey(handle, &REDIRECT_CALLOUT_KEY);
-        FwpmCalloutDeleteByKey(handle, &STREAM_CALLOUT_KEY);
-        FwpmTransactionAbort(handle);
-        FwpmEngineClose(handle);
-        
-        return -1;
-    }
-    return 0;
+    CloseWFP();
+    return -1;
 }
 
 void CloseWFP() {

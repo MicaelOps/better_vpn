@@ -8,6 +8,10 @@ VPN Project
 
 Logs (rants, vents and afterthoughts):
 
+25/03/2026
+- God, why have you made me this stupid? Is this punishment from my last life's actions?
+- I was using the wrong POOL_FLAG in ExAllocatePool2. Instead of "NonPagedPool" I had to use POOL_FLAGS_NON_PAGED
+
 23/03/2026
 - Undergoing tests, for some reason ExAllocatePool2 is failing.
 - I wish I could write more for this log but I am so sleep and its only 6pm.
