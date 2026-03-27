@@ -245,7 +245,7 @@ static VOID NTAPI ClassifyFn(
 
 
 			// really bad tagcounter but i cba at this point, user project
-			PVOID buf = ExAllocatePool2(NonPagedPoolNx, headersize, 'fuBa');
+			PVOID buf = ExAllocatePool2(POOL_FLAG_NON_PAGED, headersize, 'fuBa');
 
 			if (!buf) {
 				DbgPrint("Unable to allocate buff for injection \n");
@@ -283,7 +283,7 @@ static VOID NTAPI ClassifyFn(
 			}
 
 			/* Inject the new bits first */
-			injectCtx = ExAllocatePool2(NonPagedPoolNx, sizeof(INJECT_CONTEXT), 'fyba');
+			injectCtx = ExAllocatePool2(POOL_FLAG_NON_PAGED, sizeof(INJECT_CONTEXT), 'fyba');
 
 
 			if (!injectCtx) {
