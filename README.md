@@ -8,6 +8,10 @@ VPN Project
 
 Logs (rants, vents and afterthoughts):
 
+08/04/2026
+- Holy, I had a nice 1st stage, havent received an email about the 2nd stage.
+- But the prep I am doing is making me learn alot. I will have a lot of changes once everything is over 
+
 27/03/2026
 - I will have to take a break here because I have to study for my interview and pretty much have to revise my basics.
 - Potentially, I will add a few more fixes.
