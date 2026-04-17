@@ -8,6 +8,10 @@ VPN Project
 
 Logs (rants, vents and afterthoughts):
 
+17/04/2026
+- I've finished my final interview, not sure if i will get accepted. Not the cleanest perfomance.
+- Oh well, at least im back for this project.
+
 08/04/2026
 - Holy, I had a nice 1st stage, havent received an email about the 2nd stage.
 - But the prep I am doing is making me learn alot. I will have a lot of changes once everything is over 
