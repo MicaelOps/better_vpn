@@ -8,6 +8,9 @@ VPN Project
 
 Logs (rants, vents and afterthoughts):
 
+16/06/2026
+- I got the job and started 5th May. Additionally, with my first salary, I purchased a laptop just for Linux. Therefore, it will be hard to continue the window side of things as I performed a full reset on my previous one.
+  
 17/04/2026
 - I've finished my final interview, not sure if i will get accepted. Not the cleanest perfomance.
 - Oh well, at least im back for this project.
